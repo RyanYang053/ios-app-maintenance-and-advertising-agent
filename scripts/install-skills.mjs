@@ -20,7 +20,7 @@ linkSkill(join(targets[0],'ios-app-operator'),targets[1],'ios-app-operator');
 const checkouts = join(root, '.agent-data', 'upstream');
 mkdirSync(checkouts, { recursive: true, mode: 0o700 });
 
-for (const item of repos.filter((item) => item.checkout)) {
+for (const item of repos.filter((item) => item.checkout && !process.argv.includes('--local-only'))) {
   if (item.checkout === 'compliance' && !process.argv.includes('--with-compliance')) continue;
   const dir = join(checkouts, item.checkout);
   if (!existsSync(dir)) {
