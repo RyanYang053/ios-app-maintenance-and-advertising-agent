@@ -1,0 +1,25 @@
+name: Operator validation
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  validate:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+      fail-fast: false
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts
+      - run: npm install --prefix adapters/mcp --ignore-scripts
+      - run: node --test test/host-tools.test.mjs
+      - run: npm test --prefix adapters/mcp
+      - if: runner.os != 'Windows'
+        run: npm test
