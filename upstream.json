@@ -7,14 +7,23 @@
   },
   {
     "name": "ASC Skills",
-    "url": "https://github.com/rudrankriyam/asc-skills",
+    "url": "https://github.com/rorkai/app-store-connect-cli-skills",
     "license": "MIT",
     "checkout": "asc-skills",
     "revision": "13194595ab6e438f3d2695101d654510c527731d",
     "skills": [
       "skills/asc-submission-health",
       "skills/asc-aso-audit",
-      "skills/asc-analytics-reports"
+      "skills/asc-analytics-reports",
+      "skills/asc-cli-usage",
+      "skills/asc-metadata-sync",
+      "skills/asc-localize-metadata",
+      "skills/asc-screenshot-resize",
+      "skills/asc-ppp-pricing",
+      "skills/asc-subscription-localization",
+      "skills/asc-crash-triage",
+      "skills/asc-whats-new-writer",
+      "skills/asc-release-flow"
     ]
   },
   {
