@@ -33,6 +33,7 @@ npm install --prefix adapters/mcp --ignore-scripts
 cp examples/agent.config.json agent.config.json
 node scripts/install-skills.mjs
 npm test
+npm test --prefix adapters/mcp
 ```
 
 1. 按 [ASC CLI 7.5.0](https://github.com/rorkai/App-Store-Connect-CLI/releases/tag/7.5.0) 的说明安装 `asc`。通过 `asc auth login` 在本地设置 App Store Connect 凭据，填入 `asc.profile` 和 `asc.vendor`。Sales and Trends 需要合适角色的团队 API 密钥。广告用独立的 `asc ads auth login`，填入 `ads.profile` 和适用的 `ads.accounts`。也可用 `ASC_VENDOR_NUMBER` 和 `ASC_ADS_AD_ACCOUNT_ID`。
