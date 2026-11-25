@@ -1,16 +1,17 @@
 {
   "permissions": {
+    "defaultMode": "default",
     "deny": [
-      "Bash",
       "Edit",
-      "Write",
       "NotebookEdit",
-      "Agent"
+      "Agent",
+      "Bash(node src/cli.mjs *)",
+      "Bash(npm run agent *)",
+      "Bash(gh issue create *)",
+      "Bash(git push *)"
     ],
     "ask": [
-      "mcp__ios-operator__advance",
-      "mcp__ios-operator__record",
-      "mcp__ios-operator__handoff"
+      "Bash(node scripts/operator.mjs *)"
     ]
   }
 }
