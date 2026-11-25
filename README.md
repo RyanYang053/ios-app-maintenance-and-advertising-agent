@@ -79,3 +79,7 @@ npm run agent -- record --app 1234567890 --input experiment.json
 架构选择、开源项目链接与验证边界见 [docs/upstream-research.md](docs/upstream-research.md)。
 
 上述输入 JSON 文件放入配置的 stateDir/imports；视频 brief 相对于 stateDir/drafts，截图相对于 stateDir/assets。示例路径需替换为实际生成文件。所有者专用 CLI 仍为 npm run agent -- dispatch，禁止运营 Agent 直接调用。
+
+## 跨 App 经营决策
+
+`node scripts/operator.mjs portfolio` 汇总各 App 优先级、待处理审核、到期测量、渠道成本和真实成熟安装 cohort 的单位贡献。通过 `research --app ID --input research.json` 持久化竞品、客户、渠道或 cohort 证据。配置组合工时与维护预留，优先使用已有实测成本的有利自然流量任务；缺少证据时保留探索，不自动付费。归因数据不代表因果增量利润。见 [持续运营手册](docs/operating-loop.md)。
