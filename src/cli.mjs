@@ -9,6 +9,7 @@ import { scanCompliance } from './compliance.mjs';
 import { state } from './state.mjs';
 import { advance, cycle, feedbackDigest, handoff, memory, observe, observeStore } from './operator.mjs';
 import { developerPreview, dispatchDevelopment } from './developer-queue.mjs';
+import { keywordPlan, checkKeyword, recordHealth, forecast, learningReview } from './ops-learning.mjs';
 import { appContext, lesson, assertEvidenceApp, appId } from './app-context.mjs';
 import { portfolioPlan, validateResearch } from './portfolio.mjs';
 import { dashboards, prepareBrief, prepareStoreDraft, renderVideo } from './creative.mjs';
@@ -16,6 +17,11 @@ import { dashboards, prepareBrief, prepareStoreDraft, renderVideo } from './crea
 const help = `Usage: npm run agent -- <action> [options]
 
   cycle [--app ID] [--cached] [--outcomes FILE] Run portfolio operations and reconcile release/impact evidence
+  keyword-plan --app ID                        Plan public keyword observations
+  keyword-check --app ID --input FILE          Read one configured keyword/storefront
+  health-record --app ID --input FILE          Record weekly health export and incident clusters
+  forecast --app ID --input FILE               Freeze pre-action expected outcome
+  learning-review --app ID                     Compare predictions and flag stale knowledge
   context --app ID                             Read isolated app knowledge, progress and skill revisions
   lesson --app ID --input FILE                 Record a versioned lesson from this app's closed tasks
   portfolio [--app ID]                         Prioritize portfolio with measured cohort economics and research
@@ -109,10 +115,10 @@ function scan(config, args, dir, db, apple, withFeedback = false) {
   });
 }
 
-function main() {
+async function main() {
   const { command, args } = parse(process.argv.slice(2));
   if (!command || args.help) return help;
-  if (!['context', 'lesson', 'portfolio', 'research', 'store-observe', 'cycle', 'memory', 'feedback', 'observe', 'task', 'handoff', 'advance', 'dispatch-preview', 'dispatch', 'apps', 'scan', 'inspect', 'history', 'store-draft', 'brief', 'video', 'record', 'browser'].includes(command)) throw new Error('Unknown action');
+  if (!['keyword-plan','keyword-check','health-record','forecast','learning-review','context', 'lesson', 'portfolio', 'research', 'store-observe', 'cycle', 'memory', 'feedback', 'observe', 'task', 'handoff', 'advance', 'dispatch-preview', 'dispatch', 'apps', 'scan', 'inspect', 'history', 'store-draft', 'brief', 'video', 'record', 'browser'].includes(command)) throw new Error('Unknown action');
   if (command === 'browser') {
     if (!Object.hasOwn(dashboards, args.platform)) throw new Error('Unknown browser platform');
     return { url: dashboards[args.platform], instructions: 'Use a dedicated browser profile. Sign in manually and confirm account. Read or prepare drafts only unless the exact external action has separately been authorized.' };
@@ -163,7 +169,9 @@ function main() {
       }
       return { ...cycle(db, scans, config, now), ingested, portfolio: portfolioPlan(db,config,now,args.app) };
     }
-    if(command==='context')return appContext(db,appId(args.app));
+    if(command==='context')return {...appContext(db,appId(args.app)),operationsLearning:learningReview(db,args.app,new Date().toISOString())};
+    if(command==='keyword-plan')return keywordPlan(db,appId(args.app),config,new Date().toISOString());
+    if(command==='learning-review')return learningReview(db,appId(args.app),new Date().toISOString());
     if (command === 'portfolio') return portfolioPlan(db,config,new Date().toISOString(),args.app);
     if (command === 'memory') return memory(db, config, args.app);
     if (['task', 'handoff', 'advance', 'dispatch-preview', 'dispatch'].includes(command)) {
@@ -198,6 +206,9 @@ function main() {
     }
     if (!args.input) throw new Error('Provide --input FILE');
     const input = assertEvidenceApp(args.app,commandInput(args.input),{required:false});
+    if(command==='keyword-check')return await checkKeyword(db,args.app,config,input,new Date().toISOString());
+    if(command==='health-record')return recordHealth(db,args.app,input,new Date().toISOString());
+    if(command==='forecast')return forecast(db,args.app,input,new Date().toISOString());
     if(command==='lesson')return lesson(db,args.app,input,new Date().toISOString());
     if (command === 'store-observe') return observeStore(db,recent,input,new Date().toISOString()) ?? {status:'already exists'};
     if (command === 'research') return db.saveResearch(args.app,new Date().toISOString(),validateResearch(input,new Date().toISOString()));
@@ -224,7 +235,7 @@ function main() {
 }
 
 try {
-  const result = main();
+  const result = await main();
   console.log(typeof result === 'string' ? result : JSON.stringify(result, null, 2));
 } catch (error) {
   // External command errors may embed credentials and unredacted provider payloads.
