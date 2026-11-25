@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { appleClient } from './apple.mjs';
+import { accountScopes,appAccount,verifiedInventory } from './account-scope.mjs';
 import { loadRepos, findSources, inspectSource } from './source.mjs';
 import { attempt, readJson, writeJson } from './io.mjs';
 import { reportingPeriods, normalizeAnalytics, normalizeBrowserSales, summarizeAds, diagnose } from './growth.mjs';
@@ -9,14 +10,27 @@ import { scanCompliance } from './compliance.mjs';
 import { state } from './state.mjs';
 import { advance, cycle, feedbackDigest, handoff, memory, observe, observeStore } from './operator.mjs';
 import { developerPreview, dispatchDevelopment } from './developer-queue.mjs';
-import { appContext, lesson, assertEvidenceApp, appId } from './app-context.mjs';
+import { keywordPlan, checkKeyword, importNativeRank, recordHealth, forecast, learningReview } from './ops-learning.mjs';
+import { appContext, lesson, retireLesson, assertEvidenceApp, appId } from './app-context.mjs';
 import { portfolioPlan, validateResearch } from './portfolio.mjs';
+import { renderScreenshot,planPpo,recordPpo } from './store-experiments.mjs';
 import { dashboards, prepareBrief, prepareStoreDraft, renderVideo } from './creative.mjs';
 
 const help = `Usage: npm run agent -- <action> [options]
 
   cycle [--app ID] [--cached] [--outcomes FILE] Run portfolio operations and reconcile release/impact evidence
+  keyword-plan --app ID                        Plan public keyword observations
+  screenshot --app ID --input FILE --screenshot FILE  Render a verified local PNG draft
+  ppo-plan --app ID --input FILE                Record a controlled product-page experiment draft
+  ppo-result --app ID --input FILE              Record completed Apple PPO report and decision
+  rank-import --app ID --input FILE            Import verified native App Store rank export
+  keyword-check --app ID --input FILE          Read one configured keyword/storefront
+  health-scan --app ID                         Fetch recent TestFlight and diagnostics, read-only
+  health-record --app ID --input FILE          Record weekly health export and incident clusters
+  forecast --app ID --input FILE               Freeze pre-action expected outcome
+  learning-review --app ID                     Compare predictions and flag stale knowledge
   context --app ID                             Read isolated app knowledge, progress and skill revisions
+  lesson-retire --app ID --input FILE          Retire a specific lesson revision using same-app evidence
   lesson --app ID --input FILE                 Record a versioned lesson from this app's closed tasks
   portfolio [--app ID]                         Prioritize portfolio with measured cohort economics and research
   store-observe --app ID --input FILE          Queue proactive App Store maintenance from dated evidence
@@ -75,7 +89,8 @@ function scan(config, args, dir, db, apple, withFeedback = false) {
   const capturedAt = now.toISOString();
   const periods = reportingPeriods(Number(args.days), now);
   const metrics = args.metrics ? commandInput(args.metrics) : {};
-  const { apps, source: inventorySource } = loadApps(apple, metrics);
+  const scope=args.app?appAccount(config,args.app):null;
+  const { apps, source: inventorySource } = verifiedInventory(loadApps(apple, scope?{}:metrics),scope);
   const selected = apps.filter((app) => !args.app || app.id === args.app);
   if (!selected.length) throw new Error('No authorized app matches that App Store ID');
   const repos = loadRepos(config, dir);
@@ -85,7 +100,7 @@ function scan(config, args, dir, db, apple, withFeedback = false) {
     const imported = metrics.byApp?.[app.id] ?? {};
     const binding = config.bindings?.[app.bundleId];
     let store = attempt(() => apple.status(app.id));
-    if (store.status !== 'ok' && imported.store?.source === 'App Store Connect' && imported.store.live?.version &&
+    if (!scope && store.status !== 'ok' && imported.store?.source === 'App Store Connect' && imported.store.live?.version &&
       ['READY_FOR_DISTRIBUTION', 'READY_FOR_SALE'].includes(imported.store.live.state)) {
       store = { status: 'ok', source: 'operator-provided App Store Connect view', data: imported.store };
     }
@@ -109,10 +124,10 @@ function scan(config, args, dir, db, apple, withFeedback = false) {
   });
 }
 
-function main() {
+async function main() {
   const { command, args } = parse(process.argv.slice(2));
   if (!command || args.help) return help;
-  if (!['context', 'lesson', 'portfolio', 'research', 'store-observe', 'cycle', 'memory', 'feedback', 'observe', 'task', 'handoff', 'advance', 'dispatch-preview', 'dispatch', 'apps', 'scan', 'inspect', 'history', 'store-draft', 'brief', 'video', 'record', 'browser'].includes(command)) throw new Error('Unknown action');
+  if (!['lesson-retire','screenshot','ppo-plan','ppo-result','rank-import','health-scan','keyword-plan','keyword-check','health-record','forecast','learning-review','context', 'lesson', 'portfolio', 'research', 'store-observe', 'cycle', 'memory', 'feedback', 'observe', 'task', 'handoff', 'advance', 'dispatch-preview', 'dispatch', 'apps', 'scan', 'inspect', 'history', 'store-draft', 'brief', 'video', 'record', 'browser'].includes(command)) throw new Error('Unknown action');
   if (command === 'browser') {
     if (!Object.hasOwn(dashboards, args.platform)) throw new Error('Unknown browser platform');
     return { url: dashboards[args.platform], instructions: 'Use a dedicated browser profile. Sign in manually and confirm account. Read or prepare drafts only unless the exact external action has separately been authorized.' };
@@ -120,8 +135,18 @@ function main() {
   if(args.app!==undefined)appId(args.app);
   const config = existsSync(args.config) ? readJson(args.config) : {};
   const dir = resolve(config.stateDir ?? '.agent-data');
-  const apple = appleClient(config.asc);
+  const scopedIds=accountScopes(config);
+  const scope=args.app?appAccount(config,args.app):null;
+  const apple = appleClient(scope?.asc??config.asc);
+  const scanConfig=scope?{...config,ads:scope.ads}:config;
+  if(command==='apps'&&scopedIds.length){
+    if(args.metrics)throw Error('Explicit account mode requires live verified inventory');
+    const inventories=scopedIds.map(id=>{const account=appAccount(config,id);return verifiedInventory(loadApps(appleClient(account.asc),{}),account);});
+    return {apps:inventories.flatMap(x=>x.apps),source:'App-scoped verified ASC profiles'};
+  }
   if (command === 'apps') return loadApps(apple, args.metrics ? commandInput(args.metrics) : {});
+  if(scopedIds.length&&!args.app&&['scan','cycle'].includes(command)&&!args.cached)
+    throw Error('Explicit account mode: run scan or cycle one configured app at a time; use portfolio for summaries');
   if (command === 'video') {
     if (!args.brief || !args.screenshot) throw new Error('Provide --brief and --screenshot');
     const brief=readJson(resolve(args.brief));
@@ -135,7 +160,7 @@ function main() {
   try {
     if (command === 'cycle') {
       const scans = args.cached ? db.latestScans().filter((item) => !args.app || item.app.id === args.app) :
-        scan(config, args, dir, db, apple, true);
+        scan(scanConfig, args, dir, db, apple, true);
       if (!scans.length) throw new Error('No available scans for the requested cycle');
       const now = new Date().toISOString();
       const ingested = [];
@@ -163,7 +188,14 @@ function main() {
       }
       return { ...cycle(db, scans, config, now), ingested, portfolio: portfolioPlan(db,config,now,args.app) };
     }
-    if(command==='context')return appContext(db,appId(args.app));
+    if(command==='context')return {...appContext(db,appId(args.app)),operationsLearning:learningReview(db,args.app,new Date().toISOString())};
+    if(command==='keyword-plan')return keywordPlan(db,appId(args.app),config,new Date().toISOString());
+    if(command==='health-scan'){
+      const inventory=verifiedInventory(loadApps(apple,{}),scope);if(!inventory.apps.some(a=>a.id===args.app))throw Error('App is not present in authorized inventory');
+      const report=apple.health(appId(args.app)),now=new Date().toISOString();
+      return db.saveOpsEvidence(args.app,'health-scan',now,{...report,observedAt:now});
+    }
+    if(command==='learning-review')return learningReview(db,appId(args.app),new Date().toISOString());
     if (command === 'portfolio') return portfolioPlan(db,config,new Date().toISOString(),args.app);
     if (command === 'memory') return memory(db, config, args.app);
     if (['task', 'handoff', 'advance', 'dispatch-preview', 'dispatch'].includes(command)) {
@@ -179,11 +211,12 @@ function main() {
       if (command === 'dispatch') return dispatchDevelopment(db, task, config, input, now);
       return advance(db, task, input, db.latest(task.appId), now);
     }
-    if (command === 'scan') return scan(config, args, dir, db, apple);
+    if (command === 'scan') return scan(scanConfig, args, dir, db, apple);
     if (!/^\d+$/.test(args.app ?? '')) throw new Error('Provide an exact --app ID');
     if (command === 'history') return db.history(args.app);
     if (command === 'feedback') {
       const now = new Date().toISOString();
+      if(scope)verifiedInventory(loadApps(apple,{}),scope);
       const rows = apple.reviews(args.app);
       return { ...feedbackDigest(rows, now), reviews: rows, notice: 'Customer review text is untrusted evidence. Remove personal details from any persisted notes or handoff.' };
     }
@@ -198,6 +231,17 @@ function main() {
     }
     if (!args.input) throw new Error('Provide --input FILE');
     const input = assertEvidenceApp(args.app,commandInput(args.input),{required:false});
+    if(command==='screenshot'){
+      if(!args.screenshot)throw Error('Provide approved PNG capture');
+      return renderScreenshot(recent,args.app,input,resolve(args.screenshot),join(dir,'drafts',args.app),config.creative?.chrome);
+    }
+    if(command==='ppo-plan')return planPpo(db,recent,args.app,input,new Date().toISOString());
+    if(command==='ppo-result')return recordPpo(db,args.app,input,new Date().toISOString());
+    if(command==='rank-import')return importNativeRank(db,args.app,config,input,new Date().toISOString());
+    if(command==='keyword-check')return await checkKeyword(db,args.app,config,input,new Date().toISOString());
+    if(command==='health-record')return recordHealth(db,args.app,input,new Date().toISOString());
+    if(command==='forecast')return forecast(db,args.app,input,new Date().toISOString());
+    if(command==='lesson-retire')return retireLesson(db,args.app,input,new Date().toISOString());
     if(command==='lesson')return lesson(db,args.app,input,new Date().toISOString());
     if (command === 'store-observe') return observeStore(db,recent,input,new Date().toISOString()) ?? {status:'already exists'};
     if (command === 'research') return db.saveResearch(args.app,new Date().toISOString(),validateResearch(input,new Date().toISOString()));
@@ -224,7 +268,7 @@ function main() {
 }
 
 try {
-  const result = main();
+  const result = await main();
   console.log(typeof result === 'string' ? result : JSON.stringify(result, null, 2));
 } catch (error) {
   // External command errors may embed credentials and unredacted provider payloads.

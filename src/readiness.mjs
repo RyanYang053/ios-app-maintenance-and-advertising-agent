@@ -5,6 +5,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { spawnSync } from 'node:child_process';
 import { skillCatalog } from './host-skills.mjs';
 import { appleClient } from './apple.mjs';
+import { accountScopes,appAccount,verifiedInventory } from './account-scope.mjs';
 
 const result=(name,status,detail)=>({name,status,detail});
 const placeholder=x=>typeof x==='string'&&/OWNER\/REPOSITORY|\/absolute\/path\/to\/|^MyApps$|^MyAppleAds$/.test(x);
@@ -54,7 +55,9 @@ export function readiness(root,{live=false,probeCommand=probe,inventory=null}={}
     (typeof cfg.github?.owner==='string'&&cfg.github.owner.length>0);
   put('source-config',sources?'PASS':'BLOCKED','Configure real local/GitHub app sources or an authorized owner; source matches verified during scan');
   if(cfg.github?.owner)put('gh-cli',probeCommand('gh',['--version'])?'PASS':'BLOCKED','Required for owner repository discovery; auth checked during scan');
-  put('sales-vendor',cfg.asc?.vendor||process.env.ASC_VENDOR_NUMBER?'PASS':'BLOCKED','Vendor number required for Sales and Trends API; scoped report import is possible');
+  let scopedIds=[];
+  try{scopedIds=accountScopes(cfg);put('account-routing','PASS',scopedIds.length?'Explicit app profiles configured':'Shared account mode; not credential isolation');}catch{put('account-routing','BLOCKED','Invalid per-app profiles; fix configuration');}
+  put('sales-vendor',(scopedIds.length?scopedIds.every(id=>cfg.appAccounts[id].vendor):cfg.asc?.vendor||process.env.ASC_VENDOR_NUMBER)?'PASS':'BLOCKED','Vendor number required for Sales and Trends API; scoped report import is possible');
   put('ads-account',cfg.ads?.accounts?.length||process.env.ASC_ADS_AD_ACCOUNT_ID?'PASS':'OPTIONAL','Needed only to read paid Apple Ads accounts');
   const configured=Object.entries(cfg.loop?.apps??{}).filter(([id,p])=>/^\d+$/.test(id)&&p?.market&&p?.channels?.length);
   put('promotion-policy',configured.length?'PASS':'BLOCKED','Set real App Store IDs, markets, allowed channels and cost limits');
@@ -65,7 +68,7 @@ export function readiness(root,{live=false,probeCommand=probe,inventory=null}={}
   put('compliance-scanner',cfg.compliance?.checkout&&existsSync(resolve(root,cfg.compliance.checkout))?'PASS':'OPTIONAL','Optional licensed compliance scanner; install only after license review');
   if(live){
     try{
-      const apps=inventory?inventory():appleClient(cfg.asc).apps();
+      const apps=inventory?inventory():scopedIds.length?scopedIds.flatMap(id=>{const scope=appAccount(cfg,id);return verifiedInventory({apps:appleClient(scope.asc).apps()},scope).apps;}):appleClient(cfg.asc).apps();
       if(!Array.isArray(apps))throw Error();
       put('apple-inventory',apps.length?'PASS':'BLOCKED',apps.length+' authorized apps returned; confirm intended team');
       const ids=new Set(configured.map(([id])=>id));

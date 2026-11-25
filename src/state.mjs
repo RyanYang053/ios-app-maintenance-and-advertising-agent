@@ -39,6 +39,11 @@ export function state(dir) {
       id INTEGER PRIMARY KEY, app_id TEXT NOT NULL, captured_at TEXT NOT NULL, payload TEXT NOT NULL,
       UNIQUE(app_id, payload)
     );
+    CREATE TABLE IF NOT EXISTS ops_evidence (
+      app_id TEXT NOT NULL, kind TEXT NOT NULL, evidence_key TEXT NOT NULL, payload TEXT NOT NULL,
+      PRIMARY KEY(app_id,kind,evidence_key)
+    );
+    CREATE TABLE IF NOT EXISTS public_request_gate (id INTEGER PRIMARY KEY CHECK(id=1), next_at INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS skill_lessons (
       app_id TEXT NOT NULL, domain TEXT NOT NULL, lesson_key TEXT NOT NULL,
       revision INTEGER NOT NULL, payload TEXT NOT NULL,
@@ -65,6 +70,25 @@ export function state(dir) {
     }
   }
   return {
+    opsEvidence(app,kind) {
+      return db.prepare('SELECT payload FROM ops_evidence WHERE app_id=? AND kind=? ORDER BY rowid DESC').all(appId(app),kind).map(r=>JSON.parse(r.payload));
+    },
+    saveOpsEvidence(app,kind,key,payload){
+      assertEvidenceApp(app,payload);
+      const result=db.prepare('INSERT INTO ops_evidence(app_id,kind,evidence_key,payload) VALUES(?,?,?,?) ON CONFLICT DO NOTHING').run(app,kind,key,JSON.stringify(payload));
+      if(!result.changes)throw Error('Evidence already exists; original retained');
+      return payload;
+    },
+    reservePublicRequest(now){
+      return transaction(()=>{
+        const current=db.prepare('SELECT next_at FROM public_request_gate WHERE id=1').get()?.next_at??0;
+        if(now<current)throw Error('Public request cooldown active; retry later');
+        db.prepare('INSERT INTO public_request_gate(id,next_at) VALUES(1,?) ON CONFLICT(id) DO UPDATE SET next_at=excluded.next_at').run(now+6000);
+      });
+    },
+    pausePublicRequests(until){
+      db.prepare('INSERT INTO public_request_gate(id,next_at) VALUES(1,?) ON CONFLICT(id) DO UPDATE SET next_at=MAX(next_at,excluded.next_at)').run(until);
+    },
     lessons(app) {
       return db.prepare('SELECT domain,lesson_key,revision,payload FROM skill_lessons WHERE app_id=? ORDER BY domain,lesson_key,revision DESC').all(appId(app)).map((row,i,all)=>({...JSON.parse(row.payload),appId:app,revision:row.revision,
         current:i===0||all[i-1].domain!==row.domain||all[i-1].lesson_key!==row.lesson_key}));

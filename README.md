@@ -87,3 +87,6 @@ npm run agent -- record --app 1234567890 --input experiment.json
 ### 首次运行自检
 
 `node scripts/operator.mjs doctor` 检查本地配置、Skills、SQLite 与工具；`node scripts/operator.mjs doctor --live` 额外读取 Apple App 清单（只读），列出仍缺少市场或渠道配置的 App ID。安装默认使用空白生产模板，示例不再自动成为运营配置。真实账户、视频渲染、两个客户端及外部开发闭环须分别验收。
+
+### Upstream-derived operations
+See [upstream integration](docs/upstream-integration.md) for pinned MIT ports, per-app keyword monitoring, weekly health evidence, forecast review and memory curation. No MCP or new server required. Public iTunes search ordering is not native App Store rank.

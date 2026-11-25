@@ -4,7 +4,18 @@ import { resolve, relative, isAbsolute, sep } from 'node:path';
 import { appFolder } from './app-context.mjs';
 
 export const actions = Object.freeze({
+  'keyword-plan': 'Plan app-specific keyword refresh',
+  screenshot: 'Render a local opaque App Store PNG draft from an approved app capture',
+  'ppo-plan': 'Record app-specific product page optimization draft',
+  'ppo-result': 'Record matched completed Apple PPO report',
+  'rank-import': 'Import verified native storefront search results without mixing rank sources',
+  'keyword-check': 'Read one configured public iTunes search and save evidence',
+  'health-scan': 'Fetch scoped recent TestFlight and performance diagnostics',
+  'health-record': 'Import app-specific weekly health evidence',
+  forecast: 'Record a pre-action expected outcome',
+  'learning-review': 'Compare predictions and identify stale knowledge',
   context: 'Read only the selected app knowledge, progress and skill revisions',
+  'lesson-retire': 'Retire an app lesson by app and revision while retaining history',
   lesson: 'Record an app-specific skill lesson from closed outcomes',
   apps: 'List authorized Apple apps',
   scan: 'Scan Apple data, release status, compliance and growth signals; save local evidence',
@@ -28,9 +39,9 @@ export const actions = Object.freeze({
   browser: 'Return the approved platform dashboard URL'
 });
 const platforms = ['asc','ads','tiktok','instagram','youtube','x','reddit','linkedin'];
-const appRequired = new Set(['context','lesson','task','handoff','advance','dispatch-preview','video','feedback','inspect','history','observe','research','store-observe','store-draft','brief','record']);
+const appRequired = new Set(['lesson-retire','screenshot','ppo-plan','ppo-result','rank-import','health-scan','keyword-plan','keyword-check','health-record','forecast','learning-review','context','lesson','task','handoff','advance','dispatch-preview','video','feedback','inspect','history','observe','research','store-observe','store-draft','brief','record']);
 const taskRequired = new Set(['task','handoff','dispatch-preview','advance']);
-const inputRequired = new Set(['lesson','observe','advance','research','store-observe','store-draft','brief','record']);
+const inputRequired = new Set(['lesson-retire','screenshot','ppo-plan','ppo-result','rank-import','keyword-check','health-record','forecast','lesson','observe','advance','research','store-observe','store-draft','brief','record']);
 const inputAllowed = new Set([...inputRequired,'handoff']);
 function inside(root, path) {
   const base = realpathSync(root);
@@ -50,7 +61,8 @@ export function buildInvocation(root, action, args = {}) {
     ...(inputAllowed.has(action)?['inputJson']:[]),
     ...(action==='inspect'?['release']:[]),
     ...(action==='browser'?['platform']:[]),
-    ...(action==='video'?['brief','screenshot']:[])
+    ...(action==='video'?['brief','screenshot']:[]),
+    ...(action==='screenshot'?['screenshot']:[])
   ]);
   for (const k of Object.keys(args)) if (args[k]!==undefined && !allowed.has(k)) throw new Error('Unexpected option: '+k);
   const argv = [resolve(root,'src/cli.mjs'),action];
@@ -72,13 +84,14 @@ export function buildInvocation(root, action, args = {}) {
     if (!platforms.includes(args.platform)) throw new Error('Invalid platform');
     argv.push('--platform',args.platform);
   }
-  if (action==='video') {
+  if (action==='video'||action==='screenshot') {
     let config={};
     try { config=JSON.parse(readFileSync(resolve(root,'agent.config.json'),'utf8')); }
     catch(e) { if(e.code!=='ENOENT') throw e; }
     const state=resolve(root,config.stateDir??'.agent-data');
-    if (!args.brief||!args.screenshot) throw new Error('Approved brief and screenshot required');
-    argv.push('--brief',inside(appFolder(resolve(state,'drafts'),args.app),args.brief),'--screenshot',inside(appFolder(resolve(state,'assets'),args.app),args.screenshot));
+    if(!args.screenshot||(action==='video'&&!args.brief))throw Error('Approved screenshot and video brief where applicable required');
+    if(action==='video')argv.push('--brief',inside(appFolder(resolve(state,'drafts'),args.app),args.brief));
+    argv.push('--screenshot',inside(appFolder(resolve(state,'assets'),args.app),args.screenshot));
   }
   if(inputRequired.has(action)&&args.inputJson===undefined) throw new Error('Evidence input required');
   const inputs=['inputJson','metricsJson','outcomesJson'].filter(k=>args[k]!==undefined);
