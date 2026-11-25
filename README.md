@@ -16,12 +16,12 @@
 `cycle` 扫描当前 Apple 连接可见的 App，查看审核、广告、销售和评论信号，自动创建维护和推广任务，核对待上线版本，并标记到期的效果复查。跨对话的结果、验收和任务历史保存在本地 SQLite；`memory` 会读取实际实验数据供下一轮使用。
 
 ```bash
-npm run agent -- cycle
+node scripts/operator.mjs cycle
 npm run agent -- memory
 npm run agent -- task --task 1
 ```
 
-在 Claude Code 或 ChatGPT 本地 Codex 项目中使用统一 ios-operator MCP 运行完整运营工作流，普通 ChatGPT 对话需符合权限条件的自定义 MCP 连接。见 [双宿主安装指南](docs/hosts.md)。运营角色通过专用工具访问运营命令，App 源码仅作核验证据。需要开发的反馈通过审批后的 GitHub Issue 或本地交接包送至外部开发 Agent，由独立人员或 Agent 验收。MCP 只生成开发派发预览，实际外部 issue 由所有者在独立终端批准并执行。配置、状态和输入样例见 [持续运营手册](docs/operating-loop.md)。
+在 Claude Code 或 ChatGPT Desktop 本地 Codex 中打开同一目录，调用 `ios-app-operator` Skill 和本地 CLI。无需 MCP、远程服务或额外模型 API。普通 Chat 不保证具备本地脚本执行能力；Work 需核验本地执行权限。见 [双宿主安装指南](docs/hosts.md)。运营角色使用受限命令，App 源码仅作证据。外部 issue 由所有者在独立终端批准并执行，开发结果由独立人员验收。
 
 ## 开始使用
 
@@ -29,11 +29,8 @@ npm run agent -- task --task 1
 
 ```bash
 npm ci
-npm install --prefix adapters/mcp --ignore-scripts
-cp examples/agent.config.json agent.config.json
-node scripts/install-skills.mjs
+node scripts/setup-local.mjs
 npm test
-npm test --prefix adapters/mcp
 ```
 
 1. 按 [ASC CLI 7.5.0](https://github.com/rorkai/App-Store-Connect-CLI/releases/tag/7.5.0) 的说明安装 `asc`。通过 `asc auth login` 在本地设置 App Store Connect 凭据，填入 `asc.profile` 和 `asc.vendor`。Sales and Trends 需要合适角色的团队 API 密钥。广告用独立的 `asc ads auth login`，填入 `ads.profile` 和适用的 `ads.accounts`。也可用 `ASC_VENDOR_NUMBER` 和 `ASC_ADS_AD_ACCOUNT_ID`。
@@ -53,13 +50,13 @@ npm run agent -- history --app 1234567890
 
 ## 使用已登录的浏览器
 
-在 Claude Code 或 ChatGPT 的本地运行环境中使用已授权的浏览器工具；Chrome DevTools MCP 是可选组件，需要单独配置和批准。Chrome 144+ 可从 `chrome://inspect/#remote-debugging` 为专用浏览器配置启用调试连接。用户在该配置中完成 Apple 或社交帐号登录，并确认 Chrome 连接提示。复制到云端运行时，使用同一个已授权环境中的浏览器会话。云端的浏览器只能看到它所在环境里实际打开的会话。
+使用客户端原生的授权电脑操作能力（如可用）和独立浏览器账号；无需配置浏览器 MCP。用户自行登录。如果客户端不能访问该浏览器，使用授权导出的报告作为输入，不虚构实时数据。
 
 CLI 可以返回对应的官方面板入口。Agent 使用浏览器读取表格或准备平台原生草稿。为这个工作区使用专用浏览器，浏览器所用账号只保留 App Store Connect 和已批准社交平台所需权限。浏览器读到的 App、经营和花费记录可以参照 [metrics.json](examples/metrics.json) 导入。日期要与本次扫描窗口一致。实时 API 不可用时可导入 App Store Connect 确认过的版本状态。App Analytics 漏斗目前走导入流程，参照 `asc-analytics-reports` 或从浏览器取得原始数据。
 
 ```bash
 npm run agent -- browser --platform asc
-npm run agent -- scan --app 1234567890 --metrics /path/to/verified-metrics.json
+npm run agent -- scan --app 1234567890 --metrics verified-metrics.json
 ```
 
 ## 从诊断到实验
@@ -67,10 +64,10 @@ npm run agent -- scan --app 1234567890 --metrics /path/to/verified-metrics.json
 先确认当期问题，再确定一项要测的改动。曝光下滑时，先判断哪个国家或来源在降。商品页有稳定流量而下载走弱时，核对来源结构，再考虑测试首屏截图。下载稳定但付费走弱时，用同一批安装用户验证试用或付费转化，再考虑改 onboarding 或付费页。
 
 ```bash
-npm run agent -- store-draft --app 1234567890 --input /path/to/store-edits.json
-npm run agent -- brief --app 1234567890 --input /path/to/creative.json
-npm run agent -- video --brief /path/to/generated/brief.json --screenshot /path/to/real-app-screen.png
-npm run agent -- record --app 1234567890 --input /path/to/experiment.json
+npm run agent -- store-draft --app 1234567890 --input store-edits.json
+npm run agent -- brief --app 1234567890 --input creative.json
+npm run agent -- video --brief APP_ID/brief-EXAMPLE/brief.json --screenshot real-app-screen.png
+npm run agent -- record --app 1234567890 --input experiment.json
 ```
 
 - [store-edits.json](examples/store-edits.json) 接收当前字段和变更稿、App Store 版本 ID、语言区及试验指标。具体可编辑性由 Apple 后台状态决定。
@@ -80,3 +77,5 @@ npm run agent -- record --app 1234567890 --input /path/to/experiment.json
 - 商店写入、审核提交、社媒发布和付费投放由操作流程逐项确认。公开发布后要核对链接和内容，才算实验开始。
 
 架构选择、开源项目链接与验证边界见 [docs/upstream-research.md](docs/upstream-research.md)。
+
+上述输入 JSON 文件放入配置的 stateDir/imports；视频 brief 相对于 stateDir/drafts，截图相对于 stateDir/assets。示例路径需替换为实际生成文件。所有者专用 CLI 仍为 npm run agent -- dispatch，禁止运营 Agent 直接调用。
