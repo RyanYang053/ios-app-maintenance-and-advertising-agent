@@ -5,6 +5,7 @@ import {join,resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {run,writeJson} from './io.mjs';
 import {appId,assertEvidenceApp} from './app-context.mjs';
+import {liveRelease} from './release-record.mjs';
 const text=(x,n=500)=>typeof x==='string'&&x.trim().length>0&&x.length<=n;
 const locale=x=>typeof x==='string'&&/^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/.test(x);
 const num=x=>typeof x==='number'&&Number.isFinite(x);
@@ -16,14 +17,14 @@ export function pngInfo(bytes){
  if(bytes.length<33||bytes.subarray(0,8).toString('hex')!=='89504e470d0a1a0a'||bytes.subarray(12,16).toString()!=='IHDR')throw Error('Expected valid PNG header');
  return {width:bytes.readUInt32BE(16),height:bytes.readUInt32BE(20),colorType:bytes[25]};
 }
-function validateLive(scan,id,input){
+function validateLive(scan,id,input,release=liveRelease(scan)){
  assertEvidenceApp(id,input);
  if(scan?.app?.id!==id||scan.store?.status!=='ok'||scan.store.data?.live?.version!==input.verifiedVersion||
- scan.source?.releaseStatus!=='tag-match'||!scan.source.release?.sha||scan.source.release.sha!==input.listingSha)
-  throw Error('Confirm actual live version and matched source release before preparing promotional assets');
+ !release?.sha||release.sha!==input.listingSha)
+  throw Error('Confirm the live version and shipped source (matching Git tag or a release-confirm record) before preparing promotional assets; listingSha must equal that commit');
 }
-export function screenshotHtml(scan,id,input,bytes){
- validateLive(scan,id,input);
+export function screenshotHtml(scan,id,input,bytes,release){
+ validateLive(scan,id,input,release);
  if(!Object.hasOwn(sizes,input.device)||!Object.hasOwn(palettes,input.style)||!locale(input.locale)||
    !text(input.headline,80)||!text(input.subtitle,140)||!text(input.captureEvidence)||input.approvedCapture!==true)
   throw Error('Provide verified capture, supported device, locale, style and concise truthful copy');
@@ -33,8 +34,8 @@ export function screenshotHtml(scan,id,input,bytes){
  const [a,b,c,d]=palettes[input.style];
  return {width:w,height:h,html:'<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src &apos;none&apos;; img-src data:; style-src &apos;unsafe-inline&apos;"><style>*{box-sizing:border-box}html,body{margin:0;width:'+w+'px;height:'+h+'px;overflow:hidden;background:'+a+';color:'+c+';font-family:Arial,sans-serif}main{height:100%;padding:7% 8%;background:radial-gradient(ellipse at 85% 80%,'+b+','+a+' 72%);display:flex;flex-direction:column;align-items:center;text-align:center;gap:2%}.brand{font-size:'+Math.round(w*.032)+'px;font-weight:bold;color:'+d+'}h1{margin:0;font-size:'+Math.round(w*.071)+'px;line-height:1.05;letter-spacing:-.025em;overflow-wrap:anywhere}p{margin:0;font-size:'+Math.round(w*.033)+'px;line-height:1.2;overflow-wrap:anywhere}.capture{flex:1;min-height:0;width:100%;object-fit:contain;filter:drop-shadow(0 18px 32px #0005)}</style></head><body><main><div class="brand">'+escape(scan.app.name)+'</div><h1>'+escape(input.headline)+'</h1><p>'+escape(input.subtitle)+'</p><img class="capture" alt="" src="data:image/png;base64,'+bytes.toString('base64')+'"></main></body></html>'};
 }
-export function renderScreenshot(scan,id,input,path,dir,chrome){
- const {html,width,height}=screenshotHtml(scan,id,input,readFileSync(path));
+export function renderScreenshot(scan,id,input,path,dir,chrome,release){
+ const {html,width,height}=screenshotHtml(scan,id,input,readFileSync(path),release);
  mkdirSync(dir,{recursive:true,mode:0o700});
  const output=mkdtempSync(join(dir,'screenshot-')), source=join(output,'index.html'), png=join(output,'screenshot.png');
  writeFileSync(source,html,{mode:0o600});
@@ -47,7 +48,7 @@ export function renderScreenshot(scan,id,input,path,dir,chrome){
  return manifest;
 }
 export function planPpo(db,scan,id,input,now){
- validateLive(scan,id,input);
+ validateLive(scan,id,input,liveRelease(scan,db.opsEvidence(id,'release-record')));
  if(!/^[a-z0-9-]{3,64}$/.test(input.key??'')||!locale(input.locale)||!text(input.hypothesis)||!text(input.control)||
  !Array.isArray(input.treatments)||input.treatments.length<1||input.treatments.length>3||
  input.treatments.some(t=>!text(t.name,60)||!text(t.change)||!text(t.assetRef))||

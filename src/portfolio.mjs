@@ -52,7 +52,8 @@ export function portfolioPlan(db,config,now,appId) {
       channels.push({channel,observations:matches.length,downloads,cpa,currency,
         observedContributionPerInstall:contribution,attributionBasedNetPerHour:net!==null&&effort>0?net/effort:null,
         observedHoursPerExperiment:matches.length>=2?effort/matches.length:null,
-        action:!qualified?'organic discovery or limited retest':contribution===null?'collect cohort economics; do not scale paid':
+        action:channel==='apple-ads'?(contribution===null?'paid test only within cashCap after approval; collect cohort economics before scaling':'compare Apple Ads cost per tap download with cohort contribution before any budget change'):
+          !qualified?'organic discovery or limited retest':contribution===null?'collect cohort economics; do not scale paid':
           contribution<=cpa?'do not scale; improve economics':'candidate for controlled organic replication',
         caveat:'Attributed installs times observed cohort contribution is a proxy, not incremental profit or a forecast.'});
     }

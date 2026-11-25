@@ -34,14 +34,19 @@ export const actions = Object.freeze({
   advance: 'Record verified operation evidence or acceptance locally',
   'store-draft': 'Save exact proposed store changes locally',
   brief: 'Save promotion brief locally',
-  video: 'Render a video using verified files within operator workspace',
+  'release-confirm': 'Record the commit that built the live version when no Git tag matches',
+  storyboard: 'Validate and save an agent-authored video storyboard (OpenDesign-guided)',
+  'content-plan': 'Record a weekly multi-channel posting calendar',
+  'ads-plan': 'Preview an exact Apple Ads campaign for owner approval; spends nothing',
+  video: 'Check, render and review a storyboard video (or legacy brief + screenshot) inside the operator workspace',
   record: 'Record observed experiment evidence locally',
   browser: 'Return the approved platform dashboard URL'
 });
 const platforms = ['asc','ads','tiktok','instagram','youtube','x','reddit','linkedin'];
-const appRequired = new Set(['lesson-retire','screenshot','ppo-plan','ppo-result','rank-import','health-scan','keyword-plan','keyword-check','health-record','forecast','learning-review','context','lesson','task','handoff','advance','dispatch-preview','video','feedback','inspect','history','observe','research','store-observe','store-draft','brief','record']);
+const newInputs = ['release-confirm','storyboard','content-plan','ads-plan'];
+const appRequired = new Set([...newInputs,'lesson-retire','screenshot','ppo-plan','ppo-result','rank-import','health-scan','keyword-plan','keyword-check','health-record','forecast','learning-review','context','lesson','task','handoff','advance','dispatch-preview','video','feedback','inspect','history','observe','research','store-observe','store-draft','brief','record']);
 const taskRequired = new Set(['task','handoff','dispatch-preview','advance']);
-const inputRequired = new Set(['lesson-retire','screenshot','ppo-plan','ppo-result','rank-import','keyword-check','health-record','forecast','lesson','observe','advance','research','store-observe','store-draft','brief','record']);
+export const inputRequired = new Set([...newInputs,'lesson-retire','screenshot','ppo-plan','ppo-result','rank-import','keyword-check','health-record','forecast','lesson','observe','advance','research','store-observe','store-draft','brief','record']);
 const inputAllowed = new Set([...inputRequired,'handoff']);
 function inside(root, path) {
   const base = realpathSync(root);
@@ -61,7 +66,7 @@ export function buildInvocation(root, action, args = {}) {
     ...(inputAllowed.has(action)?['inputJson']:[]),
     ...(action==='inspect'?['release']:[]),
     ...(action==='browser'?['platform']:[]),
-    ...(action==='video'?['brief','screenshot']:[]),
+    ...(action==='video'?['brief','screenshot','storyboard']:[]),
     ...(action==='screenshot'?['screenshot']:[])
   ]);
   for (const k of Object.keys(args)) if (args[k]!==undefined && !allowed.has(k)) throw new Error('Unexpected option: '+k);
@@ -89,9 +94,14 @@ export function buildInvocation(root, action, args = {}) {
     try { config=JSON.parse(readFileSync(resolve(root,'agent.config.json'),'utf8')); }
     catch(e) { if(e.code!=='ENOENT') throw e; }
     const state=resolve(root,config.stateDir??'.agent-data');
-    if(!args.screenshot||(action==='video'&&!args.brief))throw Error('Approved screenshot and video brief where applicable required');
-    if(action==='video')argv.push('--brief',inside(appFolder(resolve(state,'drafts'),args.app),args.brief));
-    argv.push('--screenshot',inside(appFolder(resolve(state,'assets'),args.app),args.screenshot));
+    if(action==='video'&&args.storyboard!==undefined){
+      if(args.brief!==undefined||args.screenshot!==undefined)throw Error('Use --storyboard alone, or the legacy --brief with --screenshot');
+      argv.push('--storyboard',inside(appFolder(resolve(state,'drafts'),args.app),args.storyboard));
+    } else {
+      if(!args.screenshot||(action==='video'&&!args.brief))throw Error(action==='video'?'Provide --storyboard FILE (in drafts/APP_ID), or legacy --brief and --screenshot':'Provide --screenshot FILE in assets/APP_ID');
+      if(action==='video')argv.push('--brief',inside(appFolder(resolve(state,'drafts'),args.app),args.brief));
+      argv.push('--screenshot',inside(appFolder(resolve(state,'assets'),args.app),args.screenshot));
+    }
   }
   if(inputRequired.has(action)&&args.inputJson===undefined) throw new Error('Evidence input required');
   const inputs=['inputJson','metricsJson','outcomesJson'].filter(k=>args[k]!==undefined);
@@ -119,11 +129,18 @@ export function scopedResult(action,args,data){
     ({appId,appName,status,latestScan,created,updated,due,learning,reviewCount:feedback?.data?.count??null}))};
   return data;
 }
+// The owner CLI prints only sanitized messages (validation text or a generic tool failure),
+// so its stderr is safe to relay; it is what lets the agent correct its input.
+export function failureDetail(stderr) {
+  const lines=String(stderr??'').split(/\r?\n/).filter(line=>line.trim()&&!/^\(node:\d+\)|ExperimentalWarning|--trace-warnings/.test(line));
+  const detail=lines.join('\n').slice(0,4000);
+  return detail?'Operator command failed: '+detail:'Operator command failed without a message; check local setup (doctor) or run the command with valid input';
+}
 export async function runHostTool(root,action,args) {
   const {argv,stdin}=buildInvocation(root,action,args);
   return await new Promise((done,fail)=>{
-    const child=execFile(process.execPath,argv,{cwd:root,timeout:600000,maxBuffer:24*1024*1024,windowsHide:true},(err,out)=>{
-      if(err) return fail(new Error('Operator command failed; check local setup or run the exact command locally for diagnostics.'));
+    const child=execFile(process.execPath,['--disable-warning=ExperimentalWarning',...argv],{cwd:root,timeout:action==='video'?1800000:600000,maxBuffer:24*1024*1024,windowsHide:true},(err,out,errOut)=>{
+      if(err) return fail(new Error(err.killed?'Operator command timed out':failureDetail(errOut)));
       try {done(scopedResult(action,args,JSON.parse(out)));} catch {fail(new Error('Invalid operator response'));}
     });
     child.stdin.on('error',()=>{});

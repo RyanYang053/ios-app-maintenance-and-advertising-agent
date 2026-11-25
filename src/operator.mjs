@@ -2,11 +2,16 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { attempt, run, writeJson } from './io.mjs';
 import { reviewRoutes, storeProof } from './release-routing.mjs';
+import { liveRelease } from './release-record.mjs';
 
 const DAY = 86_400_000;
 const SHA = /^[a-f0-9]{40}$/i;
-const CHANNELS = ['tiktok', 'instagram', 'youtube', 'x', 'reddit', 'linkedin'];
-const FORMATS = ['demo', 'tutorial', 'announcement', 'comparison', 'community-post'];
+export const SOCIAL_CHANNELS = ['tiktok', 'instagram', 'youtube', 'x', 'reddit', 'linkedin'];
+export const PAID_CHANNELS = ['apple-ads'];
+const CHANNELS = [...SOCIAL_CHANNELS, ...PAID_CHANNELS];
+export const FORMATS = ['demo', 'tutorial', 'announcement', 'comparison', 'community-post', 'story', 'behind-the-scenes', 'user-problem'];
+const APPLE_ADS_SOURCES = ['Apple Ads Platform API', 'Apple Ads campaign report'];
+const PROXY_METRICS = ['views', 'engagements', 'linkClicks', 'profileVisits', 'follows', 'shares', 'saves', 'comments'];
 const NONNEGATIVE = (n) => typeof n === 'number' && Number.isFinite(n) && n >= 0;
 const date = (value) => new Date(value).toISOString().slice(0, 10);
 const count = (value) => Number.isSafeInteger(value) && value >= 0;
@@ -25,10 +30,13 @@ const selection = (scan) => {
   return { repo, folder, sha, ref };
 };
 
-function profile(config, appId) {
+export function profile(config, appId) {
   const row = config.loop?.apps?.[appId] ?? {};
+  const channels = [...new Set(row.channels ?? [])];
   const result = {
-    channels: [...new Set(row.channels ?? [])],
+    channels,
+    maxActivePromotions: row.maxActivePromotions ?? Math.max(1, Math.min(3, channels.length)),
+    cooldownDays: row.cooldownDays ?? 7,
     shareAggregateLearning: row.shareAggregateLearning === true,
     receiveAggregateLearning: row.receiveAggregateLearning === true,
     audienceGroup: row.audienceGroup ?? null, market: row.market ?? null,
@@ -41,6 +49,8 @@ function profile(config, appId) {
     !NONNEGATIVE(result.cashCap) || [result.hourlyRate, result.maxCpa].some((n) => n !== null && !NONNEGATIVE(n)) ||
     !count(result.minimumDownloads) || result.minimumDownloads < 1 ||
     !count(result.measurementDays) || result.measurementDays < 3 || result.measurementDays > 30 ||
+    !count(result.maxActivePromotions) || result.maxActivePromotions < 1 || result.maxActivePromotions > 6 ||
+    !count(result.cooldownDays) || result.cooldownDays > 60 ||
     [result.audienceGroup, result.market].some((part) => part !== null && !text(part))) {
     throw new Error('Invalid loop configuration for App Store ID ' + appId);
   }
@@ -81,6 +91,36 @@ function promotionLearning(appId, policy, items, config) {
   return estimates.sort((a, b) => a.costPerDownload - b.costPerDownload);
 }
 
+// Decide whether a free channel deserves a new campaign and why. Lower rank is preferred.
+function promotionBasis(channel, policy, items, learning) {
+  const closed = items.filter((item) => item.kind === 'promotion' && item.status === 'closed' && item.channel === channel &&
+    item.policy?.market === policy.market && item.policy?.currency === policy.currency);
+  if (PAID_CHANNELS.includes(channel)) {
+    if (!(policy.cashCap > 0)) return null;
+    return { rank: 4, scope: 'paid-test', hypothesis: 'Run one capped Apple Ads search test for the live version.',
+      note: 'Requires authorize-cost, an approved ads-plan preview and a verified campaign receipt. Attribution is tap-based, not incremental.' };
+  }
+  const withinCpa = (row) => policy.maxCpa === null || row.costPerDownload <= policy.maxCpa;
+  const own = learning.find((row) => row.scope === 'same-app' && row.channel === channel);
+  if (own) return withinCpa(own) ? { ...own, rank: 0, hypothesis: 'Repeat a measured channel play in a comparable market.' } : null;
+  const transferable = learning.find((row) => row.scope === 'matched-apps' && row.channel === channel);
+  if (transferable && withinCpa(transferable)) return { ...transferable, rank: 1, hypothesis: 'Test a channel that measured well for opted-in comparable apps.' };
+  if (!closed.length) return { rank: 2, scope: 'unmeasured', hypothesis: 'Test an organic, evidence-backed campaign with an App Store campaign link.',
+    note: 'Start organic; record every post, time and cash.' };
+  const organic = closed.filter((item) => item.publication?.mode === 'organic');
+  const eligible = organic.filter((item) => item.outcome?.learningEligible);
+  if (eligible.length > 0 && eligible.length < 3 && eligible.some((item) => item.outcome.downloads > 0 && item.outcome.totalCost !== null)) {
+    return { rank: 3, scope: 'replication', hypothesis: 'Collect one more comparable organic observation before ranking cost.',
+      note: 'Collect one more comparable organic observation before ranking cost.' };
+  }
+  const inconclusive = organic.filter((item) => item.outcome?.suppressed || item.outcome?.verdict === 'below download floor');
+  if (inconclusive.length === organic.length && inconclusive.length > 0 && inconclusive.length < 3) {
+    return { rank: 3, scope: 'retest', hypothesis: 'Retest with a different angle and more posts; prior windows were suppressed or under the floor.',
+      note: 'Inconclusive is not zero. Change one variable (angle, format or posting volume) and keep the same market.' };
+  }
+  return null;
+}
+
 function baseTask(scan, kind, key, now, fields) {
   return {
     appId: scan.app.id, appName: scan.app.name, kind, key, status: 'queued',
@@ -105,14 +145,15 @@ function stableLive(scan) {
 
 function reconcileRelease(db, task, scan, now) {
   const live = scan.store?.data?.live;
-  const release = scan.source?.release;
+  const shipped = liveRelease(scan, db.opsEvidence(task.appId, 'release-record'));
+  const release = shipped?.release;
   if (scan.store?.status !== 'ok' || live?.version !== task.delivery.version ||
-    String(live?.buildNumber) !== task.delivery.build || scan.source.releaseStatus !== 'tag-match' ||
-    release?.repo !== task.target.repo || release.folder !== task.target.folder) return null;
+    String(live?.buildNumber) !== task.delivery.build || !release?.path ||
+    release.repo !== task.target.repo || release.folder !== task.target.folder) return null;
   const proof = attempt(() => run('git', ['-C', release.path, 'merge-base', '--is-ancestor', task.delivery.commit, release.sha]));
   if (proof.status !== 'ok') return null;
   const deployment = { observedAt: now, version: live.version, build: live.buildNumber, tagCommit: release.sha,
-    source: scan.inventorySource, confidence: 'App Store version/build plus Git release-tag ancestry' };
+    source: scan.inventorySource, confidence: 'App Store version/build plus Git ancestry via ' + shipped.provenance };
   if (task.kind === 'maintenance') {
     return db.updateOperation(task, { status: 'closed', deployment,
       outcome: { verdict: 'release verified', trace: task.delivery.evidence } }, 'release-verified', now);
@@ -229,38 +270,29 @@ export function cycle(db, scans, config, now) {
       ],
     });
     const learning = promotionLearning(appId, policy, db.operations(),config);
-    const active = items.some((item) => item.kind === 'promotion' && !['closed', 'cancelled'].includes(item.status));
-    if (stableLive(scan) && !active && policy.channels.length) {
-      const channels = policy.channels.filter((channel) => !items.some((item) => item.kind === 'promotion' &&
-        item.channel === channel && item.status === 'closed' && Date.parse(now) - Date.parse(item.updatedAt) < 14 * DAY));
-      const own = learning.find((row) => row.scope === 'same-app' && channels.includes(row.channel) &&
-        (policy.maxCpa === null || row.costPerDownload <= policy.maxCpa));
-      const transferable = learning.find((row) => row.scope === 'matched-apps' && channels.includes(row.channel) &&
-        !learning.some((existing) => existing.channel === row.channel && existing.scope === 'same-app') &&
-        (policy.maxCpa === null || row.costPerDownload <= policy.maxCpa));
-      const unexplored = channels.find((c) => !items.some((item) => item.kind === 'promotion' && item.channel === c &&
-        item.status === 'closed' && item.policy.market === policy.market));
-      const replication = channels.find((channel) => {
-        if (learning.some((item) => item.channel === channel && item.scope === 'same-app')) return false;
-        const prior = items.filter((item) => item.kind === 'promotion' && item.status === 'closed' &&
-          item.channel === channel && item.policy.currency === policy.currency && item.policy.market === policy.market &&
-          item.outcome?.learningEligible && item.publication?.mode === 'organic');
-        return prior.length > 0 && prior.length < 3 && prior.some((item) => item.outcome.downloads > 0 && item.outcome.totalCost !== null);
-      });
-      const pick = own ?? transferable;
-      const channel = pick?.channel ?? unexplored ?? replication;
-      if (channel) {
-        const live = scan.store.data.live;
+    const activePromotions = items.filter((item) => item.kind === 'promotion' && !['closed', 'cancelled'].includes(item.status));
+    if (stableLive(scan) && policy.channels.length) {
+      let slots = policy.maxActivePromotions - activePromotions.length;
+      const free = policy.channels.filter((channel) => !activePromotions.some((item) => item.channel === channel) &&
+        !items.some((item) => item.kind === 'promotion' && item.channel === channel && item.status === 'closed' &&
+          Date.parse(now) - Date.parse(item.updatedAt) < policy.cooldownDays * DAY));
+      const candidates = free.map((channel) => ({ channel, basis: promotionBasis(channel, policy, items, learning) }))
+        .filter((row) => row.basis).sort((a, b) => a.basis.rank - b.basis.rank ||
+          (a.basis.costPerDownload ?? Infinity) - (b.basis.costPerDownload ?? Infinity));
+      const live = scan.store.data.live;
+      for (const { channel, basis } of candidates) {
+        if (slots <= 0) break;
+        const { rank, ...recorded } = basis;
         const task = db.enqueue(baseTask(scan, 'promotion', 'promotion:' + channel + ':' + live.version + ':' + scan.periods.current.end, now, {
           priority: 4, channel, policy, expectedVersion: live.version, target: selection(scan),
-          hypothesis: pick ? 'Repeat a measured channel play in a comparable market.' :
-            'Test a single organic, evidence-backed demo with an App Store campaign link.',
-          basis: pick ?? (unexplored ? { scope: 'unmeasured', note: 'Start with an organic experiment and record time and cash.' } :
-            { scope: 'replication', note: 'Collect one more comparable organic observation before ranking cost.' }),
-          approvedCashLimit: 0,
+          hypothesis: recorded.hypothesis, basis: recorded, approvedCashLimit: 0, posts: [], signals: [],
         }), now);
-        if (task) created.push(task.id);
-      } else waiting.push({ reason: channels.length ? 'No channel has qualified cost evidence or a new test opportunity' : 'Channels are in the experiment cooldown period' });
+        if (task) { created.push(task.id); slots -= 1; }
+      }
+      if (!candidates.length && !activePromotions.length) waiting.push({ reason: free.length ?
+        'No channel has qualified cost evidence or a new test opportunity' : 'Channels are in the experiment cooldown period' });
+      if (slots <= 0 && candidates.length > created.length) waiting.push({ reason: 'Active promotion limit reached (' +
+        policy.maxActivePromotions + '); close or cancel a campaign to start another channel' });
     } else if (stableLive(scan) && !policy.channels.length) {
       waiting.push({ reason: 'Configure the app’s allowed promotion channels and measurement market' });
     }
@@ -277,7 +309,68 @@ const POST_HOSTS = {
   x: ['x.com', 'twitter.com'], reddit: ['reddit.com', 'redd.it'], linkedin: ['linkedin.com'],
 };
 
+function postUrl(task, value) {
+  const posting = https(value);
+  return posting && POST_HOSTS[task.channel]?.some((host) => posting.hostname === host || posting.hostname.endsWith('.' + host)) &&
+    posting.pathname !== '/' ? posting : null;
+}
+
+function windowEnd(task) {
+  return Date.parse(date(task.startedAt)) + (task.policy.measurementDays + 1) * DAY;
+}
+
+function campaignPost(task, input, now) {
+  const posting = postUrl(task, input.publishedUrl);
+  const at = Date.parse(input.publishedAt);
+  if (!posting || !text(input.publishedAt) || !Number.isFinite(at) || at > Date.parse(now) || at < Date.parse(task.startedAt) ||
+    at >= windowEnd(task) || (input.format !== undefined && !FORMATS.includes(input.format)) ||
+    (input.angle !== undefined && (!text(input.angle) || input.angle.length > 200)) ||
+    (input.campaignLink !== undefined && https(input.campaignLink)?.searchParams.get('ct') !== task.publication.campaignToken)) {
+    throw new Error('A follow-up post needs an observed ' + task.channel + ' URL, a publishedAt inside the measurement window (' +
+      date(task.startedAt) + ' to ' + date(windowEnd(task) - DAY) + '), and the same campaign token ' + task.publication.campaignToken);
+  }
+  if ([task.publication.publishedUrl, ...(task.posts ?? []).map((row) => row.publishedUrl)].includes(posting.href)) {
+    throw new Error('This post URL is already recorded for the campaign');
+  }
+  return { publishedUrl: posting.href, publishedAt: input.publishedAt, format: input.format, angle: input.angle,
+    contentRef: text(input.contentRef) ? input.contentRef : undefined };
+}
+
+function proxySignal(input, now) {
+  const metrics = input.metrics;
+  if (!text(input.source) || !text(input.scope) || !text(input.observedAt) || !Number.isFinite(Date.parse(input.observedAt)) ||
+    Date.parse(input.observedAt) > Date.parse(now) || !metrics || typeof metrics !== 'object' || Array.isArray(metrics) ||
+    !Object.keys(metrics).length || Object.entries(metrics).some(([key, value]) => !PROXY_METRICS.includes(key) || !count(value))) {
+    throw new Error('Signals need observedAt, source, scope and non-negative integer metrics from: ' + PROXY_METRICS.join(', '));
+  }
+  return { observedAt: input.observedAt, source: input.source, scope: input.scope, metrics,
+    postUrl: text(input.postUrl) ? input.postUrl : undefined };
+}
+
+function storeTrend(value) {
+  if (value === undefined) return undefined;
+  if (!value || !text(value.metric) || !text(value.source) || !text(value.scope) || !NONNEGATIVE(value.before) || !NONNEGATIVE(value.after) ||
+    !dayStamp(value.beforeStart) || !dayStamp(value.beforeEnd)) {
+    throw new Error('storeTrend needs metric, source, scope, before, after and the comparison window beforeStart/beforeEnd');
+  }
+  return { ...value, interpretation: 'Before/after correlation (for example App Store search downloads). Not attributable to this campaign.' };
+}
+
+function adsLaunch(db, task, input, now) {
+  const plan = db.opsEvidence(task.appId, 'ads-plan').find((row) => row.taskId === task.id && row.fingerprint === input.fingerprint);
+  const at = Date.parse(input.launchedAt);
+  if (!plan || !text(input.approvalReference) || !text(input.campaignId, 200) || !text(input.receiptEvidence) ||
+    !Number.isFinite(at) || at > Date.parse(now) || at < Date.parse(task.createdAt)) {
+    throw new Error('Record the Apple Ads launch with the approved ads-plan fingerprint, approvalReference, campaignId, receiptEvidence and launchedAt');
+  }
+  if (plan.totalBudget > task.approvedCashLimit) throw new Error('The approved plan budget exceeds the authorized cash limit; run authorize-cost first');
+  return { publication: { mode: 'paid', channel: 'apple-ads', campaignId: input.campaignId, fingerprint: plan.fingerprint,
+    totalBudget: plan.totalBudget, currency: plan.currency, endDate: plan.endDate, accountId: plan.accountId,
+    approvalReference: input.approvalReference, receiptEvidence: input.receiptEvidence }, startedAt: input.launchedAt };
+}
+
 function publishedProof(task, input, scan, now) {
+  if (PAID_CHANNELS.includes(task.channel)) throw new Error('Paid channels use ads-plan, approval and the ads-launched action');
   const posting = https(input.publishedUrl);
   const link = https(input.campaignLink);
   const mode = input.mode ?? 'organic';
@@ -374,23 +467,35 @@ function measurement(task, input, now) {
   }
   const trace = { start, end, source, evidence, caveats: text(input.caveats) ? input.caveats : null };
   if (task.kind === 'promotion') {
-    if (input.campaignToken !== task.publication.campaignToken || source !== 'App Store Connect Campaign Links' ||
-      input.currency !== task.policy.currency || !count(input.downloads) ||
+    const paid = PAID_CHANNELS.includes(task.channel);
+    const identity = paid ? input.campaignId === task.publication.campaignId && APPLE_ADS_SOURCES.includes(source) :
+      input.campaignToken === task.publication.campaignToken && source === 'App Store Connect Campaign Links';
+    const suppressed = input.suppressed === true;
+    if (!identity || input.currency !== task.policy.currency ||
+      (suppressed ? input.downloads !== undefined && input.downloads !== null : !count(input.downloads)) ||
       !NONNEGATIVE(input.cash) || !NONNEGATIVE(input.hours)) {
-      throw new Error('Provide the matching Apple campaign token, currency, first-time downloads, cash and labor hours');
+      throw new Error(paid ? 'Provide the Apple Ads campaignId, source (' + APPLE_ADS_SOURCES.join(' or ') + '), currency, tap-attributed new downloads, actual spend as cash and labor hours' :
+        'Provide the matching Apple campaign token, source "App Store Connect Campaign Links", currency, first-time downloads (or suppressed:true with downloads null when Apple hides small counts), cash and labor hours');
     }
     const totalCost = task.policy.hourlyRate === null && input.hours > 0 ? null :
       input.cash + input.hours * (task.policy.hourlyRate ?? 0);
-    const cpa = totalCost !== null && input.downloads > 0 ? totalCost / input.downloads : null;
     const budgetBreach = input.cash > task.approvedCashLimit;
+    const signals = { proxies: task.signals ?? [], posts: 1 + (task.posts?.length ?? 0), storeTrend: storeTrend(input.storeTrend) };
+    if (suppressed) {
+      return { ...trace, downloads: null, suppressed: true, cash: input.cash, hours: input.hours, totalCost, costPerDownload: null,
+        budgetBreach, verdict: budgetBreach ? 'cash over approved limit' : 'attribution suppressed', learningEligible: false, signals,
+        interpretation: 'Apple withheld the attributed count (privacy threshold or delay). Unknown, not zero; proxies are correlational context only.' };
+    }
+    const cpa = totalCost !== null && input.downloads > 0 ? totalCost / input.downloads : null;
     return { ...trace, downloads: input.downloads, cash: input.cash, hours: input.hours,
-      totalCost, costPerDownload: cpa, budgetBreach,
+      totalCost, costPerDownload: cpa, budgetBreach, signals,
       verdict: budgetBreach ? 'cash over approved limit' :
         input.downloads < task.policy.minimumDownloads ? 'below download floor' :
         cpa === null ? 'labor not priced' :
         task.policy.maxCpa !== null && cpa > task.policy.maxCpa ? 'cost above ceiling' : 'met configured targets',
       learningEligible: !budgetBreach,
-      interpretation: 'Campaign attribution and observed cost per download. Incremental lift is unproven.',
+      interpretation: paid ? 'Apple Ads tap-attributed new downloads and actual spend. Incremental lift is unproven.' :
+        'Campaign-link attribution undercounts viewers who search the App Store instead of tapping. Incremental lift is unproven.',
     };
   }
   const goal = task.impact;
@@ -458,8 +563,25 @@ export function advance(db, task, input, scan, now) {
     const publication = publishedProof(task, input, scan, now);
     if (db.operations(task.appId).some((other) => other.id !== task.id &&
       other.publication?.campaignToken === publication.campaignToken)) throw new Error('Use a fresh campaign token for each experiment');
-    return db.updateOperation(task, { status: 'live', publication, startedAt: input.publishedAt,
+    return db.updateOperation(task, { status: 'live', publication, startedAt: input.publishedAt, posts: [],
       dueAt: date(Date.parse(date(input.publishedAt)) + (task.policy.measurementDays + 1) * DAY) }, 'published', now);
+  }
+  if (task.kind === 'promotion' && task.status === 'queued' && input.action === 'ads-launched') {
+    if (!PAID_CHANNELS.includes(task.channel)) throw new Error('ads-launched applies only to paid channel tasks');
+    if (!stableLive(scan) || scan.store.data.live.version !== task.expectedVersion) {
+      throw new Error('Refresh and confirm the App Store live version before recording a launch');
+    }
+    const launch = adsLaunch(db, task, input, now);
+    return db.updateOperation(task, { status: 'live', ...launch,
+      dueAt: date(Date.parse(date(launch.startedAt)) + (task.policy.measurementDays + 1) * DAY) }, 'ads-launched', now);
+  }
+  if (task.kind === 'promotion' && task.status === 'live' && input.action === 'post') {
+    if (PAID_CHANNELS.includes(task.channel)) throw new Error('Paid campaigns do not take social posts');
+    const post = campaignPost(task, input, now);
+    return db.updateOperation(task, { posts: [...(task.posts ?? []), post] }, 'post-added', now);
+  }
+  if (task.kind === 'promotion' && ['live', 'closed'].includes(task.status) && input.action === 'signals') {
+    return db.updateOperation(task, { signals: [...(task.signals ?? []), proxySignal(input, now)] }, 'signals-recorded', now);
   }
   if (canHandoff(task) && task.status === 'delegated' && input.action === 'implemented') {
     const result = delivery(task, input);

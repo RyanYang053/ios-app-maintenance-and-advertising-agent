@@ -40,10 +40,11 @@ export function confirmRelease(db, scan, id, input, now) {
 // Returns {sha, provenance} for the live version, or null when shipped code is unverified.
 export function liveRelease(scan, records = []) {
   const live = scan?.store?.data?.live;
-  if (!live || scan.source?.status !== 'matched') return null;
-  if (scan.source.releaseStatus === 'tag-match' && scan.source.release?.sha) {
+  if (!live) return null;
+  if (scan.source?.releaseStatus === 'tag-match' && scan.source.release?.sha) {
     return { sha: scan.source.release.sha, provenance: 'git tag matching live version', release: scan.source.release };
   }
+  if (scan.source?.status !== 'matched') return null;
   const dev = scan.source.development;
   const record = records.find((row) => row.version === live.version &&
     (row.build == null || String(row.build) === String(live.buildNumber ?? '')) &&

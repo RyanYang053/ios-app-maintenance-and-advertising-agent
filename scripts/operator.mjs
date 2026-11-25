@@ -5,6 +5,7 @@ import { actions,runHostTool } from '../src/host-tools.mjs';
 import { skillCatalog,readSkill,operatorGuide } from '../src/host-skills.mjs';
 import { appFolder } from '../src/app-context.mjs';
 import { readiness } from '../src/readiness.mjs';
+import { schemaFor } from '../src/schemas.mjs';
 
 const root=resolve(import.meta.dirname,'..');
 function loadEvidence(file,app) {
@@ -22,18 +23,19 @@ function loadEvidence(file,app) {
 async function main() {
   const {values:v,positionals:p}=parseArgs({allowPositionals:true,options:{
     app:{type:'string'},task:{type:'string'},days:{type:'string'},cached:{type:'boolean'},release:{type:'boolean'},
-    platform:{type:'string'},brief:{type:'string'},screenshot:{type:'string'},input:{type:'string'},
+    platform:{type:'string'},brief:{type:'string'},screenshot:{type:'string'},storyboard:{type:'string'},input:{type:'string'},
     metrics:{type:'string'},outcomes:{type:'string'},name:{type:'string'},file:{type:'string'},help:{type:'boolean'},live:{type:'boolean'}
   }});
-  if(v.help||p.length===0) return {usage:'node scripts/operator.mjs ACTION [options]',actions:Object.keys(actions),references:['guide','skills','skill --name NAME [--file FILE]','doctor [--live]'],evidence:'--input/--metrics/--outcomes accept stdin (-) or JSON under stateDir/imports'};
+  if(v.help||p.length===0) return {usage:'node scripts/operator.mjs ACTION [options]',actions:Object.keys(actions),references:['guide','skills','skill --name NAME [--file FILE]','schema [--name ACTION]','doctor [--live]'],evidence:'--input/--metrics/--outcomes accept stdin (-) or JSON under stateDir/imports/APP_ID. Run schema --name ACTION for exact fields and an example.'};
   if(p.length!==1) throw new Error('Expected one action');
   const action=p[0];
   if(action==='doctor') {
     if(Object.keys(v).some(k=>k!=='live')) throw new Error('Only --live is supported for doctor');
     return readiness(root,{live:v.live===true});
   }
-  if(['guide','skills','skill'].includes(action)){
+  if(['guide','skills','skill','schema'].includes(action)){
     if(Object.keys(v).some(k=>!['name','file'].includes(k))) throw new Error('Unexpected reference option');
+    if(action==='schema') return schemaFor(v.name);
     if(action==='guide') return operatorGuide(root);
     if(action==='skills') return skillCatalog(root);
     return readSkill(root,v.name,v.file);

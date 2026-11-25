@@ -27,9 +27,14 @@ export function state(dir) {
       captured_at TEXT NOT NULL, payload TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS ops_by_app ON operations (app_id, id DESC);
-    CREATE UNIQUE INDEX IF NOT EXISTS one_active_operation_per_kind
+    DROP INDEX IF EXISTS one_active_operation_per_kind;
+    CREATE UNIQUE INDEX IF NOT EXISTS one_active_maintenance
       ON operations(app_id, json_extract(payload, '$.kind'))
-      WHERE json_extract(payload, '$.kind') IN ('promotion', 'maintenance')
+      WHERE json_extract(payload, '$.kind') = 'maintenance'
+        AND json_extract(payload, '$.status') NOT IN ('closed', 'cancelled');
+    CREATE UNIQUE INDEX IF NOT EXISTS one_active_promotion_per_channel
+      ON operations(app_id, json_extract(payload, '$.channel'))
+      WHERE json_extract(payload, '$.kind') = 'promotion'
         AND json_extract(payload, '$.status') NOT IN ('closed', 'cancelled');
     CREATE UNIQUE INDEX IF NOT EXISTS one_active_store_check_per_kind
       ON operations(app_id, json_extract(payload, '$.kind'), coalesce(json_extract(payload, '$.storeVersionId'), ''))

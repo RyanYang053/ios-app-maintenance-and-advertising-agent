@@ -2,6 +2,7 @@ import { copyFileSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { extname, join, resolve } from 'node:path';
 import { jsonCommand, readJson, run, writeJson } from './io.mjs';
+import { liveRelease } from './release-record.mjs';
 
 const PLATFORMS = {
   tiktok: { url: 'https://www.tiktok.com/tiktokstudio/upload', format: '9:16 product demo with captions', platformNotes: 'Show the problem and a real action in the opening seconds. Confirm account and music rights.' },
@@ -22,11 +23,13 @@ function storeLink(value, id, required = false) {
   return url.href;
 }
 
-export function prepareBrief(scan, options, dir) {
+export function prepareBrief(scan, options, dir, records = []) {
   if (scan.source.status !== 'matched') throw new Error('Confirm the GitHub repo/folder/ref and scan again before creating App claims');
   if (!scan.store.data?.live) throw new Error('A verified live iOS version is required for this public promotion brief');
-  if (scan.source.releaseStatus !== 'tag-match' || !scan.source.release?.sha || options.listingSha !== scan.source.release.sha) {
-    throw new Error('Promotion claims require the matched live release tag; development HEAD is not shipped evidence. Resolve release provenance first.');
+  const release = liveRelease(scan, records);
+  if (!release || options.listingSha !== release.sha) {
+    throw new Error('Promotion claims require shipped-code provenance: a Git tag matching the live version, or a release-confirm record. listingSha must equal that commit' +
+      (release ? ' (' + release.sha + ')' : '') + '. Development HEAD is not shipped evidence.');
   }
   const liveVersion = scan.store.data.live.version;
   const requiredText = ['audience', 'hook', 'proof', 'cta'];
@@ -52,7 +55,7 @@ export function prepareBrief(scan, options, dir) {
 
   const result = {
     state: 'draft', appId: scan.app.id, appName: scan.app.name, liveVersion,
-    listingSha: options.listingSha, checkedAt: scan.capturedAt, audience: options.audience,
+    listingSha: options.listingSha, provenance: release.provenance, checkedAt: scan.capturedAt, audience: options.audience,
     hook: options.hook, featureProof: options.proof, cta: options.cta, recommendation: scan.decision.recommendation,
     sceneCopy: [options.hook, options.proof, options.cta],
     channels, measurement: 'Check each campaign URL and record published URL/date after approval. Compare attributed downloads in App Analytics after reporting and privacy thresholds permit.',
@@ -122,8 +125,10 @@ export const dashboards = {
   ...Object.fromEntries(Object.entries(PLATFORMS).map(([key, value]) => [key, value.url])),
 };
 
-const LISTING_LIMITS = {
-  subtitle: 30, promotionalText: 170, description: 4000, keywords: 100,
+// Character limits from App Store Connect: product page text and In-App Event metadata.
+export const LISTING_LIMITS = {
+  name: 30, subtitle: 30, promotionalText: 170, description: 4000, keywords: 100, whatsNew: 4000,
+  eventName: 30, eventShortDescription: 50, eventLongDescription: 120,
 };
 
 export function prepareStoreDraft(scan, input, dir) {

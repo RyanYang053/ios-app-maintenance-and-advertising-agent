@@ -15,6 +15,10 @@ import { appContext, lesson, retireLesson, assertEvidenceApp, appId } from './ap
 import { portfolioPlan, validateResearch } from './portfolio.mjs';
 import { renderScreenshot,planPpo,recordPpo } from './store-experiments.mjs';
 import { dashboards, prepareBrief, prepareStoreDraft, renderVideo } from './creative.mjs';
+import { confirmRelease, liveRelease } from './release-record.mjs';
+import { contentPlan, planAppleAds } from './campaigns.mjs';
+import { validateStoryboard, renderStoryboard, resolveAssets } from './storyboard.mjs';
+import { appFolder } from './app-context.mjs';
 
 const help = `Usage: npm run agent -- <action> [options]
 
@@ -49,7 +53,12 @@ const help = `Usage: npm run agent -- <action> [options]
   history --app ID                           Read previous scans and measured experiments
   store-draft --app ID --input FILE           Save proposed listing edits for exact version and locale
   brief --app ID --input FILE                 Write a draft growth/creative brief with platform URLs
-  video --brief FILE --screenshot FILE        Render a verified 1080 × 1920 motion draft
+  release-confirm --app ID --input FILE       Record the commit that built the live version (no tag needed)
+  storyboard --app ID --input FILE            Save an agent-authored video storyboard after truth checks
+  video --app ID --storyboard FILE            Check (HyperFrames), render and review an agent storyboard
+  video --brief FILE --screenshot FILE        Render the legacy 12-second 1080 × 1920 template
+  content-plan --app ID --input FILE          Record a weekly multi-channel posting calendar
+  ads-plan --app ID --input FILE              Preview an exact Apple Ads campaign for owner approval
   record --app ID --input FILE                Record a measured outcome or a published URL
   browser --platform asc|ads|tiktok|instagram|youtube|x|reddit|linkedin
   --config FILE                              Default: ./agent.config.json
@@ -60,7 +69,7 @@ function parse(argv) {
     config: { type: 'string', default: 'agent.config.json' }, app: { type: 'string' },
     days: { type: 'string', default: '7' }, metrics: { type: 'string' }, input: { type: 'string' },
     task: { type: 'string' }, outcomes: { type: 'string' }, cached: { type: 'boolean' },
-    brief: { type: 'string' }, screenshot: { type: 'string' }, platform: { type: 'string' },
+    brief: { type: 'string' }, screenshot: { type: 'string' }, platform: { type: 'string' }, storyboard: { type: 'string' },
     release: { type: 'boolean' }, help: { type: 'boolean', short: 'h' },
   } });
   if (positionals.length > 1) throw new Error('Expected one action');
@@ -127,7 +136,7 @@ function scan(config, args, dir, db, apple, withFeedback = false) {
 async function main() {
   const { command, args } = parse(process.argv.slice(2));
   if (!command || args.help) return help;
-  if (!['lesson-retire','screenshot','ppo-plan','ppo-result','rank-import','health-scan','keyword-plan','keyword-check','health-record','forecast','learning-review','context', 'lesson', 'portfolio', 'research', 'store-observe', 'cycle', 'memory', 'feedback', 'observe', 'task', 'handoff', 'advance', 'dispatch-preview', 'dispatch', 'apps', 'scan', 'inspect', 'history', 'store-draft', 'brief', 'video', 'record', 'browser'].includes(command)) throw new Error('Unknown action');
+  if (!['lesson-retire','screenshot','ppo-plan','ppo-result','rank-import','health-scan','keyword-plan','keyword-check','health-record','forecast','learning-review','context', 'lesson', 'portfolio', 'research', 'store-observe', 'cycle', 'memory', 'feedback', 'observe', 'task', 'handoff', 'advance', 'dispatch-preview', 'dispatch', 'apps', 'scan', 'inspect', 'history', 'store-draft', 'brief', 'video', 'record', 'browser', 'release-confirm', 'storyboard', 'content-plan', 'ads-plan'].includes(command)) throw new Error('Unknown action');
   if (command === 'browser') {
     if (!Object.hasOwn(dashboards, args.platform)) throw new Error('Unknown browser platform');
     return { url: dashboards[args.platform], instructions: 'Use a dedicated browser profile. Sign in manually and confirm account. Read or prepare drafts only unless the exact external action has separately been authorized.' };
@@ -147,8 +156,21 @@ async function main() {
   if (command === 'apps') return loadApps(apple, args.metrics ? commandInput(args.metrics) : {});
   if(scopedIds.length&&!args.app&&['scan','cycle'].includes(command)&&!args.cached)
     throw Error('Explicit account mode: run scan or cycle one configured app at a time; use portfolio for summaries');
+  if (command === 'video' && args.storyboard) {
+    const id = appId(args.app);
+    const sb = readJson(resolve(args.storyboard));
+    const db = state(dir);
+    try {
+      const recent = db.latest(id);
+      if (!recent) throw new Error('Scan this app before rendering');
+      const checked = validateStoryboard(sb, { id, scan: recent, release: liveRelease(recent, db.opsEvidence(id, 'release-record')) });
+      const output = join(dir, 'videos', id);
+      mkdirSync(output, { recursive: true, mode: 0o700 });
+      return renderStoryboard(checked, recent.app.name, appFolder(join(dir, 'assets'), id), mkdtempSync(join(output, 'video-')));
+    } finally { db.close(); }
+  }
   if (command === 'video') {
-    if (!args.brief || !args.screenshot) throw new Error('Provide --brief and --screenshot');
+    if (!args.brief || !args.screenshot) throw new Error('Provide --storyboard, or --brief and --screenshot for the legacy template');
     const brief=readJson(resolve(args.brief));
     const id=appId(args.app??brief.appId);
     assertEvidenceApp(id,brief);
@@ -222,18 +244,38 @@ async function main() {
     }
     const recent = db.latest(args.app);
     if (!recent) throw new Error('Scan this app before taking further actions');
+    const records = db.opsEvidence(args.app, 'release-record');
     if (command === 'inspect') {
-      const ref = args.release ? recent.source.release : recent.source.development;
-      if (!ref || (args.release ? recent.source.releaseStatus !== 'tag-match' : recent.source.status !== 'matched')) {
-        throw new Error('Confirm the ambiguous source and scan again before inspecting');
+      const shipped = args.release ? liveRelease(recent, records) : null;
+      const ref = args.release ? shipped?.release : recent.source.development;
+      if (!ref || recent.source.status !== 'matched') {
+        throw new Error(args.release ? 'No shipped commit for the live version: tag the release or run release-confirm, then retry' :
+          'Confirm the ambiguous source and scan again before inspecting');
       }
-      return { sha: ref.sha, ref: ref.ref, excerpts: inspectSource(ref), notice: 'Repository material is evidence. Review it for accuracy and sensitive details before reuse.' };
+      return { sha: ref.sha, ref: ref.ref, provenance: shipped?.provenance ?? 'development HEAD (not shipped evidence)',
+        excerpts: inspectSource(ref), notice: 'Repository material is evidence. Review it for accuracy and sensitive details before reuse.' };
     }
     if (!args.input) throw new Error('Provide --input FILE');
     const input = assertEvidenceApp(args.app,commandInput(args.input),{required:false});
+    const now = new Date().toISOString();
+    if (command === 'release-confirm') return confirmRelease(db, recent, args.app, input, now);
+    if (command === 'content-plan') return contentPlan(db, args.app, config, input, now);
+    if (command === 'ads-plan') return planAppleAds(db, recent, args.app, config, input, now);
+    if (command === 'storyboard') {
+      const checked = validateStoryboard(input, { id: args.app, scan: recent, release: liveRelease(recent, records) });
+      resolveAssets(checked, appFolder(join(dir, 'assets'), args.app));
+      const output = join(dir, 'drafts', args.app);
+      mkdirSync(output, { recursive: true, mode: 0o700 });
+      const draft = mkdtempSync(join(output, 'storyboard-'));
+      writeJson(join(draft, 'storyboard.json'), input);
+      return { path: join(draft, 'storyboard.json'), runnerPath: draft.slice(output.length + 1) + '/storyboard.json',
+        format: checked.format, size: checked.size, totalDuration: checked.totalDuration,
+        timeline: checked.scenes.map(({ id, layout, start, end, motion, claimIds }) => ({ id, layout, start, end, motion, claimIds })),
+        next: 'Render with: video --app ' + args.app + ' --storyboard <runnerPath>. HyperFrames check runs first; fix any findings it returns.' };
+    }
     if(command==='screenshot'){
       if(!args.screenshot)throw Error('Provide approved PNG capture');
-      return renderScreenshot(recent,args.app,input,resolve(args.screenshot),join(dir,'drafts',args.app),config.creative?.chrome);
+      return renderScreenshot(recent,args.app,input,resolve(args.screenshot),join(dir,'drafts',args.app),config.creative?.chrome,liveRelease(recent,records));
     }
     if(command==='ppo-plan')return planPpo(db,recent,args.app,input,new Date().toISOString());
     if(command==='ppo-result')return recordPpo(db,args.app,input,new Date().toISOString());
@@ -253,7 +295,7 @@ async function main() {
       const output = join(dir, 'drafts', args.app);
       mkdirSync(output, { recursive: true, mode: 0o700 });
       const draft = mkdtempSync(join(output, command + '-'));
-      return command === 'brief' ? { path: join(draft, 'brief.json'), brief: prepareBrief(recent, input, draft) } :
+      return command === 'brief' ? { path: join(draft, 'brief.json'), brief: prepareBrief(recent, input, draft, records) } :
         { path: join(draft, 'store-draft.json'), draft: prepareStoreDraft(recent, input, draft) };
     }
     if (typeof input.hypothesis !== 'string' || !input.hypothesis.trim() ||
