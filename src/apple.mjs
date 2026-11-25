@@ -3,10 +3,10 @@ import { attempt, jsonCommand } from './io.mjs';
 const LIVE = 'READY_FOR_DISTRIBUTION';
 const RETIRED = new Set(['REPLACED_WITH_NEW_VERSION', 'REMOVED_FROM_SALE', 'DEVELOPER_REMOVED_FROM_SALE']);
 
-export function appleClient(config = {}) {
+export function appleClient(config = {}, execute=jsonCommand) {
   const cli = config.cli ?? 'asc';
   const profile = config.profile ? ['--profile', config.profile] : [];
-  const asc = (args, options) => jsonCommand(cli, [...args, '--output', 'json', ...profile], options);
+  const asc = (args, options) => execute(cli, [...args, '--output', 'json', ...profile], options);
   const rows = (response) => {
     if (!Array.isArray(response.data)) throw new Error('Expected ASC data array');
     return response.data;
@@ -42,6 +42,25 @@ export function appleClient(config = {}) {
         date: attributes.createdDate?.slice(0, 10), rating: attributes.rating, territory: attributes.territory,
         title: attributes.title?.slice(0, 150), body: attributes.body?.slice(0, 800),
       }));
+    },
+    health(id) {
+      const recent=(resource)=>attempt(()=>{
+        const list=rows(asc(['testflight',resource,'list','--app',id,'--sort=-createdDate','--limit','60']));
+        return {sampleCount:list.length,scope:'latest up to 60 records, not total count',records:list.map(({id,attributes:a={}})=>({
+          id:String(id),createdAt:a.createdDate??null,os:a.osVersion??null,device:a.deviceModel??null,
+          signature:typeof a.signature==='string'?a.signature.slice(0,200):null,
+        }))};
+      });
+      const crashes=recent('crashes'),feedback=recent('feedback');
+      const build=attempt(()=>this.latestUpload(id));
+      const diagnostics=build.status==='ok'&&build.data?.id?attempt(()=>{
+        const list=rows(asc(['performance','diagnostics','list','--build-id',build.data.id]));
+        return {buildId:build.data.id,records:list.map(({id,attributes:a={}})=>({
+          id:String(id),type:a.diagnosticType??null,signature:typeof a.signature==='string'?a.signature.slice(0,200):null,
+          weight:typeof a.weight==='number'&&Number.isFinite(a.weight)?a.weight:null,
+        }))};
+      }):{status:'unavailable',reason:'No verified latest app build'};
+      return {appId:id,crashes,feedback,diagnostics,notice:'Recent TestFlight samples, not complete crash counts; raw tester comments and logs not persisted.'};
     },
     latestUpload(id) {
       const response = asc(['builds', 'list', '--app', id, '--platform', 'IOS', '--limit', '1',
