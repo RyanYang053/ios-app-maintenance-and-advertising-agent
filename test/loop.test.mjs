@@ -12,6 +12,7 @@ const at = (day) => new Date(Date.UTC(2026, 10, day, 14)).toISOString();
 const date = (time) => new Date(time).toISOString().slice(0, 10);
 const SHA = 'a'.repeat(40);
 const config = { loop: { hourlyRate: 30, apps: {
+  '101': {shareAggregateLearning:true}, '202': {shareAggregateLearning:true},
   '123': { channels: ['youtube'], audienceGroup: 'fitness', market: 'CA', minimumDownloads: 10, maxCpa: 5 },
   '456': { channels: ['youtube'], audienceGroup: 'fitness', market: 'CA', receiveAggregateLearning:true },
   '789': { channels: ['youtube'], audienceGroup: 'fitness', market: 'US' },
@@ -90,6 +91,8 @@ test('transfer requires multiple apps with comparable market, currency and labor
   assert.equal(memory(db, config, '456')[0].promotionEvidence[0].scope, 'matched-apps');
   const isolated=structuredClone(config);isolated.loop.apps['456'].receiveAggregateLearning=false;
   assert.deepEqual(memory(db,isolated,'456')[0].promotionEvidence,[]);
+  const revoked=structuredClone(config);revoked.loop.apps['101'].shareAggregateLearning=false;
+  assert.deepEqual(memory(db,revoked,'456')[0].promotionEvidence,[]);
   assert.deepEqual(memory(db, config, '789')[0].promotionEvidence, []);
 });
 
