@@ -7,6 +7,7 @@ export const actions = Object.freeze({
   scan: 'Scan Apple data, release status, compliance and growth signals; save local evidence',
   cycle: 'Run portfolio operations and reconcile release or impact evidence',
   portfolio: 'Prioritize across apps using recent evidence and cohort contribution',
+  'store-observe': 'Queue proactive App Store maintenance from verified evidence',
   research: 'Persist dated competitor, customer, channel or cohort evidence locally',
   memory: 'Read persistent per-app outcomes and qualified channel evidence',
   feedback: 'Read recent customer reviews as untrusted evidence',
@@ -24,9 +25,9 @@ export const actions = Object.freeze({
   browser: 'Return the approved platform dashboard URL'
 });
 const platforms = ['asc','ads','tiktok','instagram','youtube','x','reddit','linkedin'];
-const appRequired = new Set(['feedback','inspect','history','observe','research','store-draft','brief','record']);
+const appRequired = new Set(['feedback','inspect','history','observe','research','store-observe','store-draft','brief','record']);
 const taskRequired = new Set(['task','handoff','dispatch-preview','advance']);
-const inputRequired = new Set(['observe','advance','research','store-draft','brief','record']);
+const inputRequired = new Set(['observe','advance','research','store-observe','store-draft','brief','record']);
 const inputAllowed = new Set([...inputRequired,'handoff']);
 function inside(root, path) {
   const base = realpathSync(root);
