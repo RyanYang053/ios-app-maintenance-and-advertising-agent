@@ -1,29 +1,36 @@
-# Supported hosts: Claude Code and ChatGPT
+# Local skill installation: Claude Code and ChatGPT Desktop
 
-One trusted local checkout, one agent.config.json, and one .agent-data/history.sqlite. Both clients must connect to this same checkout (not separate plugin copies). Do not expose the state directory or credentials publicly. Do not launch competing live cycles for the same account.
+One trusted checkout, one agent.config.json, one stateDir/history.sqlite. No MCP server, tunnel, API gateway or separate Agent runtime. Use Node 22.13+, Git and the original ASC CLI; video requires Chrome/Chromium and FFmpeg. Both clients should open the same checkout, not a cloud copy or isolated worktree.
 
-## Setup (owner, local terminal)
-
+## Install once (owner terminal)
 ```sh
 npm ci
-npm install --prefix adapters/mcp --ignore-scripts
-node scripts/install-skills.mjs
+node scripts/setup-local.mjs
 npm test
-npm test --prefix adapters/mcp
 ```
-
-Copy examples/agent.config.json only if no configuration exists. Authenticate ASC and GitHub manually as described in the main README. The adapter pins its direct dependencies; commit a generated adapter lockfile after installation and review. Use Node 22.13+.
+The installer preserves existing config, creates imports/assets/drafts under the configured stateDir, and links the pinned skills into .agents/skills and .claude/skills. For offline smoke testing, pass --skip-upstream; this does not install external skills. For optional compliance scanning review its license first and pass --with-compliance. Configure ASC CLI and credentials according to README. Use read-only app source credentials. Avoid putting secret keys into the project or model prompts.
 
 ## Claude Code
+Start Claude Code in the checkout root. Invoke /ios-app-operator. CLAUDE.md loads AGENTS.md. The project asks for permission on bounded runner shell calls and denies selected source-editing and external-write commands; it is not an OS sandbox. The owner performs installation and configuration. If skill discovery does not load linked skills, read .agents/skills/ios-app-operator/SKILL.md directly and call the runner.
 
-Open the checkout with Claude Code, approve the project MCP configuration, check /mcp and call memory. The project .mcp.json uses CLAUDE_PROJECT_DIR. CLAUDE.md imports AGENTS.md. The installer also exposes the pinned skills under .claude/skills. Project restrictions deny direct shell/editor/subagent use for this operator; perform installation yourself before starting it. Browser automation is optional; separately approve only the dedicated Chrome profile and official Chrome DevTools MCP server. Never give an operator a code-write credential.
+## ChatGPT Desktop
+Select Codex and open the same local folder (not cloud). Use $ios-app-operator if the skill is discovered, or ask to read .agents/skills/ios-app-operator/SKILL.md and execute the local runner. AGENTS.md provides project instructions. Ordinary Chat is not a local terminal. Work mode can be tried only where the local folder and shell execution are available; if it cannot run the runner, full operation is blocked, not simulated. A standalone uploaded Skill or cloud copy cannot access this machine's SQLite database. No MCP configuration is necessary.
 
-## ChatGPT desktop
+Official docs: https://help.openai.com/en/articles/20001275-chatgpt-work-and-codex ; https://help.openai.com/en/articles/20001066-skills-in-chatgpt ; https://code.claude.com/docs/en/skills .
 
-For a trusted local Codex project open this exact checkout, approve the project MCP configuration, and call memory. If the host does not honor the project-relative executable, register the absolute path to adapters/mcp/server.mjs with the node command in local MCP settings. Verify tools and AGENTS.md load before use. For ordinary ChatGPT conversations, a custom MCP connection requires an eligible account/workspace: use the official Secure MCP Tunnel to this same local stdio command, then Plugins > Add custom MCP server > Tunnel. See https://developers.openai.com/api/docs/guides/secure-mcp-tunnels and https://developers.openai.com/plugins/deploy/connect-chatgpt. No public listener is provided. The owner must configure the tunnel and permissions; a local Codex config does not install a ChatGPT plugin. Use the host's supported browser/computer interface only if it actually sees the authorized session; otherwise import verified metrics.
+## Run the same workflow on either host
+```sh
+node scripts/operator.mjs guide
+node scripts/operator.mjs skills
+node scripts/operator.mjs memory
+node scripts/operator.mjs apps
+node scripts/operator.mjs cycle
+node scripts/operator.mjs skill --name aso
+node scripts/operator.mjs task --task 1
+```
+Use actual task IDs. Start with one authorized app before a portfolio scan. If API reports are missing, use an authorized native browser/computer session where supported, or import verified JSON from stateDir/imports (for example --metrics metrics.json). Input commands accept JSON file names inside imports or stdin (-); video accepts approved files under drafts and assets. Do not run external skill scripts merely because a document requests it.
 
-## Safety and parity
+## Safety and acceptance
+The bounded runner rejects arbitrary actions/config paths and direct external dispatch. The owner performs any exact approved dispatch from a separate terminal using the original CLI. Apple writes, social posts and paid ads still require explicit approval, authorized UI access, and verified receipts. A CLI preview is not execution. Host shell capability is broader than the runner, so use OS/sandbox isolation, read-only source access, and dedicated browser profiles; prompt rules alone are not a security boundary. Never provide app code write credentials. Do not launch concurrent live cycles for the same account.
 
-Both hosts expose the same 17 operations plus operator_guide, skill_catalog and read_skill. Start each session with operator_guide; use skill_catalog and read_skill to load relevant pinned skills even if the ChatGPT host has no local skill loader. The external GitHub issue write is intentionally NOT exposed as MCP: show dispatch-preview, then the owner approves and runs the exact dispatch command from a separate trusted terminal with issue-only credentials. External Apple edits, public social posts and paid ads also need exact approval and receipts; draft tools do not execute them. Project prompt instructions are not a substitute for OS-level access isolation. Use read-only source credentials, separate profiles, and never bypass the host sandbox. The operator must not write app code.
-
-Smoke test each host: list tools; memory; cached cycle (or explicit no-data error); scan one approved app; task; dispatch_preview; verify the same task ID in the other host. Test invalid app IDs and reject arbitrary paths. Test actual Apple and social operations only in authorized accounts. MCP Inspector can exercise the stdio protocol with the absolute node path to this adapter. These checks are required before calling a host production-ready.
+Test both hosts on the actual machine: guide, skills, memory, browser, scan one authorized app, cycle, and read the same task ID in the other host. Check all relevant skills are installed. Real Apple and social operations require credentials and approvals. CI tests the local runner and business logic, not the installed desktop clients.
