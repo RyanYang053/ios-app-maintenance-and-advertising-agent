@@ -3,6 +3,8 @@ import { readFileSync, realpathSync } from 'node:fs';
 import { resolve, relative, isAbsolute, sep } from 'node:path';
 
 export const actions = Object.freeze({
+  context: 'Read only the selected app knowledge, progress and skill revisions',
+  lesson: 'Record an app-specific skill lesson from closed outcomes',
   apps: 'List authorized Apple apps',
   scan: 'Scan Apple data, release status, compliance and growth signals; save local evidence',
   cycle: 'Run portfolio operations and reconcile release or impact evidence',
@@ -25,9 +27,9 @@ export const actions = Object.freeze({
   browser: 'Return the approved platform dashboard URL'
 });
 const platforms = ['asc','ads','tiktok','instagram','youtube','x','reddit','linkedin'];
-const appRequired = new Set(['feedback','inspect','history','observe','research','store-observe','store-draft','brief','record']);
+const appRequired = new Set(['context','lesson','task','handoff','advance','dispatch-preview','video','feedback','inspect','history','observe','research','store-observe','store-draft','brief','record']);
 const taskRequired = new Set(['task','handoff','dispatch-preview','advance']);
-const inputRequired = new Set(['observe','advance','research','store-observe','store-draft','brief','record']);
+const inputRequired = new Set(['lesson','observe','advance','research','store-observe','store-draft','brief','record']);
 const inputAllowed = new Set([...inputRequired,'handoff']);
 function inside(root, path) {
   const base = realpathSync(root);
@@ -75,7 +77,7 @@ export function buildInvocation(root, action, args = {}) {
     catch(e) { if(e.code!=='ENOENT') throw e; }
     const state=resolve(root,config.stateDir??'.agent-data');
     if (!args.brief||!args.screenshot) throw new Error('Approved brief and screenshot required');
-    argv.push('--brief',inside(resolve(state,'drafts'),args.brief),'--screenshot',inside(resolve(state,'assets'),args.screenshot));
+    argv.push('--brief',inside(resolve(state,'drafts',args.app),args.brief),'--screenshot',inside(resolve(state,'assets',args.app),args.screenshot));
   }
   if(inputRequired.has(action)&&args.inputJson===undefined) throw new Error('Evidence input required');
   const inputs=['inputJson','metricsJson','outcomesJson'].filter(k=>args[k]!==undefined);
@@ -86,6 +88,9 @@ export function buildInvocation(root, action, args = {}) {
     if(typeof value!=='string'||Buffer.byteLength(value)>750000) throw new Error('Evidence JSON too large or invalid');
     const parsed=JSON.parse(value);
     if(k==='outcomesJson'?!Array.isArray(parsed):(!parsed||typeof parsed!=='object'||Array.isArray(parsed))) throw new Error('Invalid evidence shape');
+    if(k==='inputJson'&&args.app!==undefined&&parsed.appId!==args.app)throw Error('Evidence appId must match --app');
+    if(k==='outcomesJson'&&(!args.app||parsed.some(row=>row?.appId!==args.app)))throw Error('Import outcomes one app at a time with explicit matching appId');
+    if(k==='metricsJson'&&args.app&&(Object.keys(parsed.byApp??{}).some(id=>id!==args.app)|| (parsed.apps??[]).some(a=>a.id!==args.app)))throw Error('Metrics contain a different app');
     stdin=JSON.stringify(parsed);
     argv.push('--'+k.replace('Json',''),'-');
   }
