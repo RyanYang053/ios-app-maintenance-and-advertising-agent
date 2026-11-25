@@ -1,0 +1,22 @@
+{
+  "stateDir": ".agent-data",
+  "asc": {},
+  "ads": {
+    "accounts": [],
+    "campaignApps": {}
+  },
+  "github": {
+    "repos": []
+  },
+  "bindings": {},
+  "compliance": {
+    "checkout": ".agent-data/upstream/compliance"
+  },
+  "loop": {
+    "currency": "CAD",
+    "hourlyRate": null,
+    "portfolioHoursPerCycle": null,
+    "portfolioMaintenanceReserveHours": null,
+    "apps": {}
+  }
+}
