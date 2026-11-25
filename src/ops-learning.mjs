@@ -104,5 +104,5 @@ export function learningReview(db,id,now){
     const ageDays=(Date.parse(now)-Date.parse(l.recordedAt))/DAY;
     const duplicate=uniqueMemoryMatch(lessons.filter(x=>x.domain===l.domain&&x.key!==l.key).map(x=>x.rule),l.rule);
     return {domain:l.domain,key:l.key,revision:l.revision,reviewDue:ageDays>=90||duplicate.index!==null||duplicate.ambiguous,possibleDuplicate:duplicate.index!==null||duplicate.ambiguous,ageDays:Math.floor(ageDays)};
-  }),health:db.opsEvidence(id,'health').slice(0,8),notice:'Review stale/overlapping rules and forecast errors; corrections use a new version. Never delete evidence automatically.'};
+  }),health:db.opsEvidence(id,'health').slice(0,8),recentDiagnostics:db.opsEvidence(id,'health-scan').slice(0,2),notice:'Review stale/overlapping rules and forecast errors; corrections use a new version. Never delete evidence automatically.'};
 }
