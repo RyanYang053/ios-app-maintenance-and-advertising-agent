@@ -4,7 +4,7 @@ import {mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {state} from '../src/state.mjs';
-import {weekdayFor,uniqueMemoryMatch,keywordPlan,checkKeyword,recordHealth,forecast,learningReview} from '../src/ops-learning.mjs';
+import {weekdayFor,uniqueMemoryMatch,keywordPlan,checkKeyword,importNativeRank,recordHealth,forecast,learningReview} from '../src/ops-learning.mjs';
 import {buildInvocation} from '../src/host-tools.mjs';
 const now='2026-11-25T15:00:00Z';
 function workspace(t){
@@ -85,4 +85,16 @@ test('ASC health fetch uses read-only app/profile scope, linked build and strips
  assert.doesNotMatch(JSON.stringify(health),/private/);
  assert.equal(calls.length,4);
  assert.ok(calls.filter(a=>a[0]==='testflight').every(a=>a.includes('123')));
+});
+
+test('native rank import preserves source, app and keyword and rejects schema drift',t=>{
+ const db=workspace(t),cfg={loop:{apps:{'123':{aso:{keywords:['Workout'],storefronts:['CA']}}}}};
+ const input={appId:'123',keyword:'workout',country:'CA',observedOn:'2026-11-25',complete:true,evidence:'verified native export',export:{pageData:{bubbles:[{name:'software',results:[{id:'123'},{id:'789'}]}]}}};
+ assert.equal(importNativeRank(db,'123',cfg,input,now).rank,1);
+ const plan=keywordPlan(db,'123',cfg,now);
+ assert.equal(plan.due.length,1);
+ assert.equal(plan.nativeHistory[0].rank,1);
+ assert.equal(plan.history.length,0);
+ assert.equal(plan.competitorOverlap[0].appId,'789');
+ assert.throws(()=>importNativeRank(db,'123',cfg,{...input,export:{}},now),/Unexpected/);
 });
