@@ -8,6 +8,7 @@ const config=resolve(root,'agent.config.json');
 if(!existsSync(config)) copyFileSync(resolve(root,'examples/agent.config.template.json'),config);
 const cfg=JSON.parse(readFileSync(config,'utf8'));
 for(const dir of ['imports','assets','drafts']) mkdirSync(resolve(root,cfg.stateDir??'.agent-data',dir),{recursive:true,mode:0o700});
+for(const id of Object.keys(cfg.loop?.apps??{}).filter(x=>/^\d+$/.test(x))) for(const dir of ['imports','assets','drafts','handoffs','videos']) mkdirSync(resolve(root,cfg.stateDir??'.agent-data',dir,id),{recursive:true,mode:0o700});
 const args=process.argv.slice(2);
 if(args.some(x=>!['--with-compliance','--skip-upstream'].includes(x))) throw new Error('Unknown setup option');
 const run=(cmd,argv)=>{const r=spawnSync(cmd,argv,{cwd:root,stdio:'inherit',shell:false});if(r.error||r.status!==0)throw new Error('Setup step failed: '+cmd);};
