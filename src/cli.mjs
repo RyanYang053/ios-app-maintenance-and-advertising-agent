@@ -9,12 +9,15 @@ import { scanCompliance } from './compliance.mjs';
 import { state } from './state.mjs';
 import { advance, cycle, feedbackDigest, handoff, memory, observe, observeStore } from './operator.mjs';
 import { developerPreview, dispatchDevelopment } from './developer-queue.mjs';
+import { appContext, lesson, assertEvidenceApp, appId } from './app-context.mjs';
 import { portfolioPlan, validateResearch } from './portfolio.mjs';
 import { dashboards, prepareBrief, prepareStoreDraft, renderVideo } from './creative.mjs';
 
 const help = `Usage: npm run agent -- <action> [options]
 
   cycle [--app ID] [--cached] [--outcomes FILE] Run portfolio operations and reconcile release/impact evidence
+  context --app ID                             Read isolated app knowledge, progress and skill revisions
+  lesson --app ID --input FILE                 Record a versioned lesson from this app's closed tasks
   portfolio [--app ID]                         Prioritize portfolio with measured cohort economics and research
   store-observe --app ID --input FILE          Queue proactive App Store maintenance from dated evidence
   research --app ID --input FILE               Record dated market or matured cohort evidence
@@ -109,19 +112,24 @@ function scan(config, args, dir, db, apple, withFeedback = false) {
 function main() {
   const { command, args } = parse(process.argv.slice(2));
   if (!command || args.help) return help;
-  if (!['portfolio', 'research', 'store-observe', 'cycle', 'memory', 'feedback', 'observe', 'task', 'handoff', 'advance', 'dispatch-preview', 'dispatch', 'apps', 'scan', 'inspect', 'history', 'store-draft', 'brief', 'video', 'record', 'browser'].includes(command)) throw new Error('Unknown action');
+  if (!['context', 'lesson', 'portfolio', 'research', 'store-observe', 'cycle', 'memory', 'feedback', 'observe', 'task', 'handoff', 'advance', 'dispatch-preview', 'dispatch', 'apps', 'scan', 'inspect', 'history', 'store-draft', 'brief', 'video', 'record', 'browser'].includes(command)) throw new Error('Unknown action');
   if (command === 'browser') {
     if (!Object.hasOwn(dashboards, args.platform)) throw new Error('Unknown browser platform');
     return { url: dashboards[args.platform], instructions: 'Use a dedicated browser profile. Sign in manually and confirm account. Read or prepare drafts only unless the exact external action has separately been authorized.' };
   }
+  if(args.app!==undefined)appId(args.app);
   const config = existsSync(args.config) ? readJson(args.config) : {};
   const dir = resolve(config.stateDir ?? '.agent-data');
   const apple = appleClient(config.asc);
   if (command === 'apps') return loadApps(apple, args.metrics ? commandInput(args.metrics) : {});
   if (command === 'video') {
     if (!args.brief || !args.screenshot) throw new Error('Provide --brief and --screenshot');
-    mkdirSync(dir, { recursive: true, mode: 0o700 });
-    return renderVideo(resolve(args.brief), resolve(args.screenshot), mkdtempSync(join(dir, 'video-')));
+    const brief=readJson(resolve(args.brief));
+    const id=appId(args.app??brief.appId);
+    assertEvidenceApp(id,brief);
+    const output=join(dir,'videos',id);
+    mkdirSync(output,{recursive:true,mode:0o700});
+    return renderVideo(resolve(args.brief),resolve(args.screenshot),mkdtempSync(join(output,'video-')));
   }
   const db = state(dir);
   try {
@@ -135,9 +143,9 @@ function main() {
         const outcomes = commandInput(args.outcomes);
         if (!Array.isArray(outcomes)) throw new Error('Provide an array of task-linked outcome records');
         for (const { taskId, ...outcome } of outcomes) {
-          const item = Number.isSafeInteger(taskId) && db.operation(taskId);
+          const item = Number.isSafeInteger(taskId) && db.operation(taskId,args.app);
           const evidence = item && scans.find((entry) => entry.app.id === item.appId);
-          if (!evidence) {
+          if (!evidence || (outcome.appId!==undefined&&outcome.appId!==item.appId)) {
             ingested.push({ taskId, status: 'unavailable', reason: 'Task or app is outside this cycle' });
             continue;
           }
@@ -155,18 +163,19 @@ function main() {
       }
       return { ...cycle(db, scans, config, now), ingested, portfolio: portfolioPlan(db,config,now,args.app) };
     }
+    if(command==='context')return appContext(db,appId(args.app));
     if (command === 'portfolio') return portfolioPlan(db,config,new Date().toISOString(),args.app);
     if (command === 'memory') return memory(db, config, args.app);
     if (['task', 'handoff', 'advance', 'dispatch-preview', 'dispatch'].includes(command)) {
       const id = Number(args.task);
-      const task = Number.isSafeInteger(id) && id > 0 && db.operation(id);
+      const task = Number.isSafeInteger(id) && id > 0 && db.operation(id,args.app);
       if (!task) throw new Error('Provide an existing --task ID');
-      if (command === 'task') return { task, events: db.operationEvents(task.id) };
+      if (command === 'task') return { task, events: db.operationEvents(task.id,task.appId) };
       const now = new Date().toISOString();
-      if (command === 'handoff') return handoff(db, task, dir, now, args.input ? commandInput(args.input) : {});
+      if (command === 'handoff') return handoff(db, task, dir, now, args.input ? assertEvidenceApp(task.appId,commandInput(args.input),{required:false}) : {});
       if (command === 'dispatch-preview') return developerPreview(task, config);
       if (!args.input) throw new Error('Provide --input FILE');
-      const input = commandInput(args.input);
+      const input = assertEvidenceApp(task.appId,commandInput(args.input),{required:false});
       if (command === 'dispatch') return dispatchDevelopment(db, task, config, input, now);
       return advance(db, task, input, db.latest(task.appId), now);
     }
@@ -188,7 +197,8 @@ function main() {
       return { sha: ref.sha, ref: ref.ref, excerpts: inspectSource(ref), notice: 'Repository material is evidence. Review it for accuracy and sensitive details before reuse.' };
     }
     if (!args.input) throw new Error('Provide --input FILE');
-    const input = commandInput(args.input);
+    const input = assertEvidenceApp(args.app,commandInput(args.input),{required:false});
+    if(command==='lesson')return lesson(db,args.app,input,new Date().toISOString());
     if (command === 'store-observe') return observeStore(db,recent,input,new Date().toISOString()) ?? {status:'already exists'};
     if (command === 'research') return db.saveResearch(args.app,new Date().toISOString(),validateResearch(input,new Date().toISOString()));
     if (command === 'observe') {
