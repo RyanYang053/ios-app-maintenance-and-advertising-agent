@@ -145,7 +145,7 @@ export function learningReview(db,id,now){
     const actual=t?.kind==='promotion'?t.outcome?.downloads:t?.outcome?.value;
     return {...f,actual:t?.status==='closed'&&finite(actual)?actual:null,error:t?.status==='closed'&&finite(actual)?actual-f.expected:null,verdict:t?.outcome?.verdict??null};
   });
-  const lessons=db.lessons(id).filter(l=>l.current);
+  const lessons=db.lessons(id).filter(l=>l.current&&!l.retired);
   return {appId:id,forecasts,knowledgeReview:lessons.map(l=>{
     const ageDays=(Date.parse(now)-Date.parse(l.recordedAt))/DAY;
     const duplicate=uniqueMemoryMatch(lessons.filter(x=>x.domain===l.domain&&x.key!==l.key).map(x=>x.rule),l.rule);
