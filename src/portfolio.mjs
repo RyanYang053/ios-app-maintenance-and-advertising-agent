@@ -51,6 +51,7 @@ export function portfolioPlan(db,config,now,appId) {
       const net=qualified&&contribution!==null?contribution*downloads-cost:null;
       channels.push({channel,observations:matches.length,downloads,cpa,currency,
         observedContributionPerInstall:contribution,attributionBasedNetPerHour:net!==null&&effort>0?net/effort:null,
+        observedHoursPerExperiment:matches.length>=2?effort/matches.length:null,
         action:!qualified?'organic discovery or limited retest':contribution===null?'collect cohort economics; do not scale paid':
           contribution<=cpa?'do not scale; improve economics':'candidate for controlled organic replication',
         caveat:'Attributed installs times observed cohort contribution is a proxy, not incremental profit or a forecast.'});
@@ -58,20 +59,38 @@ export function portfolioPlan(db,config,now,appId) {
     const fresh=age(scan.capturedAt,now)>=0&&age(scan.capturedAt,now)<=3;
     const urgent=tasks.filter(t=>t.priority===1);
     const promotion=tasks.find(t=>t.kind==='promotion');
-    const best=channels.filter(c=>c.attributionBasedNetPerHour!==null&&c.attributionBasedNetPerHour>0)
+    const best=channels.filter(c=>c.attributionBasedNetPerHour!==null&&c.attributionBasedNetPerHour>0&&(p.maxCpa==null||c.cpa<=p.maxCpa))
       .sort((a,b)=>b.attributionBasedNetPerHour-a.attributionBasedNetPerHour)[0];
     rows.push({appId:id,appName:scan.app.name,market,currency,fresh,cohort:cohort??null,channels,
       urgentTaskIds:urgent.map(t=>t.id),promotionTaskId:promotion?.id??null,
       dueTaskIds:tasks.filter(t=>t.status==='live'&&t.dueAt<=now.slice(0,10)).map(t=>t.id),
       research:relevant.filter(r=>r.kind!=='cohort').slice(0,10),
-      priority:!fresh?0:urgent.length?1:best?2:3,
+      priority:!fresh?0:urgent.length||tasks.some(t=>t.status==='live'&&t.dueAt<=now.slice(0,10))?1:best?2:3,
       next:!fresh?'refresh evidence':urgent.length?'resolve verified maintenance blocker':best?'consider qualified organic replication':'research or zero-cash exploration',
-      rankingProxy:best?.attributionBasedNetPerHour??null});
+      rankingProxy:best?.attributionBasedNetPerHour??null,preferredChannel:best?.channel??null});
   }
   rows.sort((a,b)=>a.priority-b.priority||
     a.currency.localeCompare(b.currency)||((b.rankingProxy??-Infinity)-(a.rankingProxy??-Infinity))||a.appId.localeCompare(b.appId));
-  // No cross-currency ranking or fabricated expected hours. Owner allocates a finite time budget after task previews.
-  return {asOf:now,portfolioHoursPerCycle:hours,apps:rows,unconfiguredApps:rows.filter(r=>!r.market||r.channels.length===0).map(r=>r.appId),
+  const reserved=policy.portfolioMaintenanceReserveHours??null;
+  if(reserved!==null&&(!num(reserved)||hours===null||reserved>hours)) throw new Error('Invalid maintenance time reserve');
+  let remaining=hours===null||reserved===null?null:hours-reserved;
+  const allocation=[];
+  const eligible=rows.filter(r=>r.priority===2&&r.preferredChannel&&r.promotionTaskId);
+  const currencies=new Set(eligible.map(r=>r.currency));
+  if(currencies.size===1&&remaining!==null&&!rows.some(r=>r.priority===0||r.priority===1)){
+    for(const r of eligible){
+      const c=r.channels.find(c=>c.channel===r.preferredChannel);
+      const task=all.find(t=>t.id===r.promotionTaskId);
+      if(task?.channel!==c.channel||task.status!=='queued'||!num(c.observedHoursPerExperiment)||c.observedHoursPerExperiment===0) continue;
+      if(c.observedHoursPerExperiment>remaining)continue;
+      allocation.push({appId:r.appId,taskId:task.id,channel:c.channel,estimatedHours:c.observedHoursPerExperiment,
+        observedNetProxyPerHour:c.attributionBasedNetPerHour,currency:r.currency});
+      remaining-=c.observedHoursPerExperiment;
+    }
+  }
+  return {asOf:now,portfolioHoursPerCycle:hours,maintenanceReserveHours:reserved,proposedOrganicAllocation:allocation,
+    unallocatedHours:remaining,allocationNote:'Allocate only queued matching organic tasks with measured effort, positive attribution proxy and one currency; urgent, stale, due or missing evidence leaves allocation for owner review.',
+    apps:rows,unconfiguredApps:rows.filter(r=>!r.market||r.channels.length===0).map(r=>r.appId),
     constraints:['Resolve due and urgent tasks first','Never rank monetary returns across currencies without conversion evidence','No paid spend without explicit per-experiment approval','Unknown economics is not zero and never authorizes scaling'],
     caveat:'A decision aid, not an autonomous spend optimizer. No causal incrementality or future profit is claimed.'};
 }
