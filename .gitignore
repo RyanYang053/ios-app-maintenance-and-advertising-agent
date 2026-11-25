@@ -1,0 +1,8 @@
+.agent-data/
+/agent.config.json
+.env
+*.p8
+*.pem
+node_modules/
+.agents/skills/*
+!.agents/skills/ios-app-operator/

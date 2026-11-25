@@ -1,0 +1,16 @@
+[
+  {
+    "taskId": 1,
+    "start": "2026-11-17",
+    "end": "2026-11-23",
+    "source": "App Store Connect Campaign Links",
+    "evidence": "Scoped export path and metric reference",
+    "reportComplete": true,
+    "campaignToken": "yt-demo-a",
+    "currency": "CAD",
+    "downloads": 20,
+    "cash": 0,
+    "hours": 0.75,
+    "caveats": "A new iOS build launched during the campaign."
+  }
+]

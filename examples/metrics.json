@@ -1,0 +1,86 @@
+{
+  "apps": [
+    {
+      "id": "1234567890",
+      "bundleId": "com.example.app",
+      "name": "Example App"
+    }
+  ],
+  "byApp": {
+    "1234567890": {
+      "store": {
+        "source": "App Store Connect",
+        "live": {
+          "version": "1.2.0",
+          "state": "READY_FOR_DISTRIBUTION"
+        },
+        "candidate": null
+      },
+      "analytics": {
+        "current": {
+          "start": "2026-11-16",
+          "end": "2026-11-22",
+          "source": "App Store Connect App Analytics",
+          "scope": "Canada, all acquisition sources",
+          "impressions": 940,
+          "productPageViews": 180,
+          "firstTimeDownloads": 33,
+          "paidConversions": 9
+        },
+        "previous": {
+          "start": "2026-11-09",
+          "end": "2026-11-15",
+          "source": "App Store Connect App Analytics",
+          "scope": "Canada, all acquisition sources",
+          "impressions": 1200,
+          "productPageViews": 175,
+          "firstTimeDownloads": 43,
+          "paidConversions": 10
+        }
+      },
+      "ads": {
+        "source": "Apple Ads campaign dashboard, Example team, CAD, Canada",
+        "current": {
+          "start": "2026-11-16",
+          "end": "2026-11-22",
+          "spend": [
+            {
+              "currency": "CAD",
+              "amount": "13.21"
+            }
+          ]
+        },
+        "previous": {
+          "start": "2026-11-09",
+          "end": "2026-11-15",
+          "spend": [
+            {
+              "currency": "CAD",
+              "amount": "14.12"
+            }
+          ]
+        }
+      },
+      "sales": {
+        "source": "App Store Connect Sales and Trends",
+        "scope": "All territories and acquisition sources",
+        "current": {
+          "start": "2026-11-16",
+          "end": "2026-11-22",
+          "downloadUnits": 35,
+          "developerProceeds": {
+            "CAD": 29.51
+          }
+        },
+        "previous": {
+          "start": "2026-11-09",
+          "end": "2026-11-15",
+          "downloadUnits": 49,
+          "developerProceeds": {
+            "CAD": 37.19
+          }
+        }
+      }
+    }
+  }
+}

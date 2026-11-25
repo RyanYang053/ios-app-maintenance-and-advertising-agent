@@ -1,0 +1,30 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": [
+    "AGENTS.md"
+  ],
+  "permission": {
+    "bash": "deny",
+    "edit": "deny",
+    "task": "deny",
+    "external_directory": "deny",
+    "portfolio": "allow",
+    "developer_issue_dispatch": "ask",
+    "chrome_*": "ask"
+  },
+  "mcp": {
+    "chrome": {
+      "type": "local",
+      "command": [
+        "npx",
+        "--yes",
+        "chrome-devtools-mcp@1.14.0",
+        "--autoConnect",
+        "--no-usage-statistics",
+        "--no-javascript-evaluation",
+        "--no-file-navigations"
+      ],
+      "enabled": true
+    }
+  }
+}
