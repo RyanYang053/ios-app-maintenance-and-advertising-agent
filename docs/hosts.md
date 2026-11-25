@@ -8,7 +8,14 @@ npm ci
 node scripts/setup-local.mjs
 npm test
 ```
-The installer preserves existing config, creates imports/assets/drafts under the configured stateDir, and links the pinned skills into .agents/skills and .claude/skills. For offline smoke testing, pass --skip-upstream; this does not install external skills. For optional compliance scanning review its license first and pass --with-compliance. Configure ASC CLI and credentials according to README. Use read-only app source credentials. Avoid putting secret keys into the project or model prompts.
+The installer creates a blank production template (no fictional app IDs or repository paths) and preserves existing config, creates imports/assets/drafts under the configured stateDir, and links the pinned skills into .agents/skills and .claude/skills. For offline smoke testing, pass --skip-upstream; this does not install external skills. For optional compliance scanning review its license first and pass --with-compliance. Configure ASC CLI and credentials according to README. Use read-only app source credentials. Avoid putting secret keys into the project or model prompts.
+
+## Preflight (owner)
+```sh
+node scripts/operator.mjs doctor
+node scripts/operator.mjs doctor --live
+```
+The second command makes a read-only Apple inventory request. Configure the actual App IDs, repositories, markets, channel allowlists and reporting credentials in agent.config.json. Check each returned app, not just a sample. Missing video or paid ads dependencies can be optional for organic text promotion, but are blockers for those particular functions. The doctor never claims production acceptance: run the actual host, account and end-to-end tests below. No credentials or raw provider error output are printed.
 
 ## Claude Code
 Start Claude Code in the checkout root. Invoke /ios-app-operator. CLAUDE.md loads AGENTS.md. The project asks for permission on bounded runner shell calls and denies selected source-editing and external-write commands; it is not an OS sandbox. The owner performs installation and configuration. If skill discovery does not load linked skills, read .agents/skills/ios-app-operator/SKILL.md directly and call the runner.
