@@ -29,7 +29,13 @@ for (const item of repos.filter((item) => item.checkout && !process.argv.include
     run('git', ['-C', dir, 'remote', 'add', 'origin', item.url + '.git']);
   }
   const git = (args) => run('git', ['-C', dir, ...args], { timeout: 240_000 }).trim();
-  if (git(['remote', 'get-url', 'origin']) !== item.url + '.git') throw new Error('Unexpected remote at ' + dir);
+  const origin=git(['remote','get-url','origin']);
+  if(origin!==item.url+'.git') {
+    if(item.checkout==='asc-skills' && origin==='https://github.com/rudrankriyam/asc-skills.git' &&
+       !git(['status','--porcelain'])) {
+      git(['remote','set-url','origin',item.url+'.git']);
+    } else throw new Error('Unexpected remote at '+dir);
+  }
   let current;
   try { current = git(['rev-parse', 'HEAD']); } catch { current = null; }
   if (current !== item.revision) {
