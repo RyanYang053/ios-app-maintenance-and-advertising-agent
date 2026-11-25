@@ -13,12 +13,16 @@ import { developerPreview, dispatchDevelopment } from './developer-queue.mjs';
 import { keywordPlan, checkKeyword, importNativeRank, recordHealth, forecast, learningReview } from './ops-learning.mjs';
 import { appContext, lesson, assertEvidenceApp, appId } from './app-context.mjs';
 import { portfolioPlan, validateResearch } from './portfolio.mjs';
+import { renderScreenshot,planPpo,recordPpo } from './store-experiments.mjs';
 import { dashboards, prepareBrief, prepareStoreDraft, renderVideo } from './creative.mjs';
 
 const help = `Usage: npm run agent -- <action> [options]
 
   cycle [--app ID] [--cached] [--outcomes FILE] Run portfolio operations and reconcile release/impact evidence
   keyword-plan --app ID                        Plan public keyword observations
+  screenshot --app ID --input FILE --screenshot FILE  Render a verified local PNG draft
+  ppo-plan --app ID --input FILE                Record a controlled product-page experiment draft
+  ppo-result --app ID --input FILE              Record completed Apple PPO report and decision
   rank-import --app ID --input FILE            Import verified native App Store rank export
   keyword-check --app ID --input FILE          Read one configured keyword/storefront
   health-scan --app ID                         Fetch recent TestFlight and diagnostics, read-only
@@ -122,7 +126,7 @@ function scan(config, args, dir, db, apple, withFeedback = false) {
 async function main() {
   const { command, args } = parse(process.argv.slice(2));
   if (!command || args.help) return help;
-  if (!['rank-import','health-scan','keyword-plan','keyword-check','health-record','forecast','learning-review','context', 'lesson', 'portfolio', 'research', 'store-observe', 'cycle', 'memory', 'feedback', 'observe', 'task', 'handoff', 'advance', 'dispatch-preview', 'dispatch', 'apps', 'scan', 'inspect', 'history', 'store-draft', 'brief', 'video', 'record', 'browser'].includes(command)) throw new Error('Unknown action');
+  if (!['screenshot','ppo-plan','ppo-result','rank-import','health-scan','keyword-plan','keyword-check','health-record','forecast','learning-review','context', 'lesson', 'portfolio', 'research', 'store-observe', 'cycle', 'memory', 'feedback', 'observe', 'task', 'handoff', 'advance', 'dispatch-preview', 'dispatch', 'apps', 'scan', 'inspect', 'history', 'store-draft', 'brief', 'video', 'record', 'browser'].includes(command)) throw new Error('Unknown action');
   if (command === 'browser') {
     if (!Object.hasOwn(dashboards, args.platform)) throw new Error('Unknown browser platform');
     return { url: dashboards[args.platform], instructions: 'Use a dedicated browser profile. Sign in manually and confirm account. Read or prepare drafts only unless the exact external action has separately been authorized.' };
@@ -226,6 +230,12 @@ async function main() {
     }
     if (!args.input) throw new Error('Provide --input FILE');
     const input = assertEvidenceApp(args.app,commandInput(args.input),{required:false});
+    if(command==='screenshot'){
+      if(!args.screenshot)throw Error('Provide approved PNG capture');
+      return renderScreenshot(recent,args.app,input,resolve(args.screenshot),join(dir,'drafts',args.app),config.creative?.chrome);
+    }
+    if(command==='ppo-plan')return planPpo(db,recent,args.app,input,new Date().toISOString());
+    if(command==='ppo-result')return recordPpo(db,args.app,input,new Date().toISOString());
     if(command==='rank-import')return importNativeRank(db,args.app,config,input,new Date().toISOString());
     if(command==='keyword-check')return await checkKeyword(db,args.app,config,input,new Date().toISOString());
     if(command==='health-record')return recordHealth(db,args.app,input,new Date().toISOString());
