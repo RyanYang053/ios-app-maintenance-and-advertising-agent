@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { state } from '../src/state.mjs';
 import { portfolioPlan,validateResearch } from '../src/portfolio.mjs';
 const now='2026-11-25T15:00:00Z';
-const config={loop:{currency:'CAD',hourlyRate:20,portfolioHoursPerCycle:4,apps:{'123':{market:'CA',channels:['youtube','reddit']},'456':{market:'CA',channels:['youtube']}}}};
+const config={loop:{currency:'CAD',hourlyRate:20,portfolioHoursPerCycle:4,portfolioMaintenanceReserveHours:1,apps:{'123':{market:'CA',channels:['youtube','reddit']},'456':{market:'CA',channels:['youtube']}}}};
 const cohort={kind:'cohort',observedOn:'2026-11-24',market:'CA',source:'Cohort report',evidence:'report 1',finding:'Mature cohort',implication:'Compare costs',cohort:{start:'2026-09-01',end:'2026-09-30',horizonDays:30,installs:200,payers:30,netDeveloperProceeds:500,variableCost:100,currency:'CAD',scope:'CA acquisition cohort',complete:true}};
 test('rejects incomplete, immature or untraceable research',()=>{
   assert.throws(()=>validateResearch({...cohort,cohort:{...cohort.cohort,complete:false}},now));
@@ -27,12 +27,15 @@ test('durable research, dedupe, failed campaigns, unknown economics and ranking'
       policy:{market:'CA',currency:'CAD',hourlyRate:20,measurementDays:7},
       publication:{mode:'organic'},outcome:{learningEligible:true,end:'2026-11-20',downloads,totalCost:20,hours:1}},now);
   }
+  db.enqueue({appId:'123',key:'queued-promo',kind:'promotion',status:'queued',channel:'youtube'},now);
   db.close();db=state(dir);
   try{
     const plan=portfolioPlan(db,config,now);
     assert.equal(plan.apps[0].appId,'123');
     const channel=plan.apps[0].channels[0];
     assert.equal(channel.cpa,1);
+    assert.equal(plan.proposedOrganicAllocation.length,1);
+    assert.equal(plan.unallocatedHours,2);
     assert.equal(channel.observedContributionPerInstall,2);
     assert.equal(channel.attributionBasedNetPerHour,20);
     assert.equal(plan.apps[1].channels[0].observedContributionPerInstall,null);
