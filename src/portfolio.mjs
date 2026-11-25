@@ -69,7 +69,7 @@ export function portfolioPlan(db,config,now,appId) {
       rankingProxy:best?.attributionBasedNetPerHour??null});
   }
   rows.sort((a,b)=>a.priority-b.priority||
-    (a.currency===b.currency?(b.rankingProxy??-Infinity)-(a.rankingProxy??-Infinity):0)||a.appId.localeCompare(b.appId));
+    a.currency.localeCompare(b.currency)||((b.rankingProxy??-Infinity)-(a.rankingProxy??-Infinity))||a.appId.localeCompare(b.appId));
   // No cross-currency ranking or fabricated expected hours. Owner allocates a finite time budget after task previews.
   return {asOf:now,portfolioHoursPerCycle:hours,apps:rows,unconfiguredApps:rows.filter(r=>!r.market||r.channels.length===0).map(r=>r.appId),
     constraints:['Resolve due and urgent tasks first','Never rank monetary returns across currencies without conversion evidence','No paid spend without explicit per-experiment approval','Unknown economics is not zero and never authorizes scaling'],
