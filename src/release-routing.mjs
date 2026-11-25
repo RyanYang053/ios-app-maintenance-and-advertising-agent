@@ -34,6 +34,11 @@ export function storeProof(task, scan, input, now) {
     input.versionId !== task.storeVersionId) {
     throw new Error('Use a fresh App Store scan, approved before/after values, observed date and matching App Store version ID');
   }
+  if(task.plannedStoreChange) {
+    const plan=task.plannedStoreChange;
+    if(field!==plan.field||input.locale!==plan.locale||before!==plan.before||after!==plan.after||
+      Date.parse(scan.capturedAt)<time) throw new Error('Verify the exact planned field, locale and before/after values with a fresh post-change scan');
+  }
   if (task.storeChecks?.length) {
     const validation = scan.review?.data;
     const current = blockingChecks(validation);
