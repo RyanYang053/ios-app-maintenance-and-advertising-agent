@@ -43,6 +43,7 @@
         }
       }
     },
-    "portfolioHoursPerCycle": 4
+    "portfolioHoursPerCycle": 4,
+    "portfolioMaintenanceReserveHours": 1
   }
 }
