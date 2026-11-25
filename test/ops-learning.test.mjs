@@ -98,3 +98,18 @@ test('native rank import preserves source, app and keyword and rejects schema dr
  assert.equal(plan.competitorOverlap[0].appId,'789');
  assert.throws(()=>importNativeRank(db,'123',cfg,{...input,export:{}},now),/Unexpected/);
 });
+
+import {lesson,retireLesson,appContext} from '../src/app-context.mjs';
+test('curation retires only an exact revision with closed app evidence; old revisions remain',t=>{
+ const db=workspace(t);
+ db.saveScan('123',now,{app:{id:'123',name:'Fixture'},capturedAt:now});
+ const task=db.enqueue({appId:'123',key:'c',kind:'promotion',status:'closed',outcome:{verdict:'missed'}},now);
+ const input={appId:'123',domain:'promotion',key:'old-rule',rule:'Old rule',limitations:'Limited evidence',taskIds:[task.id],expectedRevision:0};
+ lesson(db,'123',input,now);
+ assert.throws(()=>retireLesson(db,'123',{...input,expectedRevision:0,reason:'outdated'},now));
+ retireLesson(db,'123',{...input,expectedRevision:1,reason:'outdated'},now);
+ assert.equal(db.lessons('123').length,2);
+ assert.equal(appContext(db,'123').learning.promotion.current.length,0);
+ assert.equal(appContext(db,'123').learning.promotion.retired.length,1);
+ assert.equal(learningReview(db,'123',now).knowledgeReview.length,0);
+});
