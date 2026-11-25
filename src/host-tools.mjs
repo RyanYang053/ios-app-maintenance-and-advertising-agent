@@ -6,6 +6,8 @@ export const actions = Object.freeze({
   apps: 'List authorized Apple apps',
   scan: 'Scan Apple data, release status, compliance and growth signals; save local evidence',
   cycle: 'Run portfolio operations and reconcile release or impact evidence',
+  portfolio: 'Prioritize across apps using recent evidence and cohort contribution',
+  research: 'Persist dated competitor, customer, channel or cohort evidence locally',
   memory: 'Read persistent per-app outcomes and qualified channel evidence',
   feedback: 'Read recent customer reviews as untrusted evidence',
   inspect: 'Inspect verified read-only app source excerpts',
@@ -22,9 +24,9 @@ export const actions = Object.freeze({
   browser: 'Return the approved platform dashboard URL'
 });
 const platforms = ['asc','ads','tiktok','instagram','youtube','x','reddit','linkedin'];
-const appRequired = new Set(['feedback','inspect','history','observe','store-draft','brief','record']);
+const appRequired = new Set(['feedback','inspect','history','observe','research','store-draft','brief','record']);
 const taskRequired = new Set(['task','handoff','dispatch-preview','advance']);
-const inputRequired = new Set(['observe','advance','store-draft','brief','record']);
+const inputRequired = new Set(['observe','advance','research','store-draft','brief','record']);
 const inputAllowed = new Set([...inputRequired,'handoff']);
 function inside(root, path) {
   const base = realpathSync(root);
@@ -36,7 +38,7 @@ function inside(root, path) {
 export function buildInvocation(root, action, args = {}) {
   if (!Object.hasOwn(actions, action)) throw new Error('Unsupported operator action');
   const allowed = new Set([
-    ...(['scan','cycle','memory',...appRequired].includes(action)?['app']:[]),
+    ...(['scan','cycle','memory','portfolio',...appRequired].includes(action)?['app']:[]),
     ...(taskRequired.has(action)?['task']:[]),
     ...(['scan','cycle'].includes(action)?['days']:[]),
     ...(action==='cycle'?['cached','outcomesJson']:[]),
