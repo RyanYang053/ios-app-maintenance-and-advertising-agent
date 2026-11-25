@@ -15,6 +15,7 @@ export const actions = Object.freeze({
   forecast: 'Record a pre-action expected outcome',
   'learning-review': 'Compare predictions and identify stale knowledge',
   context: 'Read only the selected app knowledge, progress and skill revisions',
+  'lesson-retire': 'Retire an app lesson by app and revision while retaining history',
   lesson: 'Record an app-specific skill lesson from closed outcomes',
   apps: 'List authorized Apple apps',
   scan: 'Scan Apple data, release status, compliance and growth signals; save local evidence',
@@ -38,9 +39,9 @@ export const actions = Object.freeze({
   browser: 'Return the approved platform dashboard URL'
 });
 const platforms = ['asc','ads','tiktok','instagram','youtube','x','reddit','linkedin'];
-const appRequired = new Set(['screenshot','ppo-plan','ppo-result','rank-import','health-scan','keyword-plan','keyword-check','health-record','forecast','learning-review','context','lesson','task','handoff','advance','dispatch-preview','video','feedback','inspect','history','observe','research','store-observe','store-draft','brief','record']);
+const appRequired = new Set(['lesson-retire','screenshot','ppo-plan','ppo-result','rank-import','health-scan','keyword-plan','keyword-check','health-record','forecast','learning-review','context','lesson','task','handoff','advance','dispatch-preview','video','feedback','inspect','history','observe','research','store-observe','store-draft','brief','record']);
 const taskRequired = new Set(['task','handoff','dispatch-preview','advance']);
-const inputRequired = new Set(['screenshot','ppo-plan','ppo-result','rank-import','keyword-check','health-record','forecast','lesson','observe','advance','research','store-observe','store-draft','brief','record']);
+const inputRequired = new Set(['lesson-retire','screenshot','ppo-plan','ppo-result','rank-import','keyword-check','health-record','forecast','lesson','observe','advance','research','store-observe','store-draft','brief','record']);
 const inputAllowed = new Set([...inputRequired,'handoff']);
 function inside(root, path) {
   const base = realpathSync(root);
