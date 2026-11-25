@@ -78,6 +78,9 @@ else if (args[0]==='versions') result={data:[
   {id:'d',attributes:{versionString:'1.3',appVersionState:'REJECTED',createdDate:'2026-11-23'}},
   {id:'l',attributes:{versionString:'1.2',appVersionState:'READY_FOR_DISTRIBUTION',createdDate:'2026-11-20'},
   relationships:{build:{data:{id:'b'}}}}],included:[{id:'b',type:'builds',attributes:{version:'12',processingState:'VALID'}}]};
+else if (args[0]==='reviews') result={data:[
+  {id:'r1',attributes:{createdDate:new Date().toISOString(),rating:2,body:'App crashed on open'}},
+  {id:'r2',attributes:{createdDate:new Date().toISOString(),rating:2,body:'Freezes while saving'}}]};
 else if (args[0]==='builds') result={data:[]};
 else if (args[0]==='validate') { result={summary:{blocking:1}}; process.exitCode=1; }
 else if (args[0]==='analytics') result={metrics:[{name:'download_units',baseline:35,comparison:15}]};
@@ -101,6 +104,11 @@ console.log(JSON.stringify(result));
   assert.equal(scan.ads.current.CAD, 15);
   assert.equal(scan.decision.recommendation.priority, 1);
   assert.equal(scan.source.release.sha, repo.release);
+  const realCycle = agent('cycle', '--app', '123');
+  assert.equal(realCycle.queue[0].kind, 'maintenance');
+  assert.equal(realCycle.apps[0].feedback.data.themes[0].theme, 'crash');
+  assert.deepEqual(agent('cycle', '--app', '123').apps[0].created, []);
+  assert.equal(agent('task', '--task', String(realCycle.queue[0].id)).events[0].event, 'queued');
   assert.match(agent('inspect', '--app', '123', '--release').excerpts.find((row) => row.file === 'README.md').excerpt, /rep counter/);
 
   const input = join(dir, 'input.json');

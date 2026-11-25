@@ -35,6 +35,14 @@ export function appleClient(config = {}) {
         v.state !== LIVE && !RETIRED.has(v.state) &&
         (!live || versions.indexOf(v) < versions.indexOf(live))) ?? null, versions: versions.slice(0, 12) };
     },
+    reviews(id) {
+      const response = asc(['reviews', 'list', '--app', id, '--limit', '60', '--sort=-createdDate',
+        '--fields', 'rating,title,body,createdDate,territory']);
+      return rows(response).map(({ id: reviewId, attributes }) => ({ id: reviewId,
+        date: attributes.createdDate?.slice(0, 10), rating: attributes.rating, territory: attributes.territory,
+        title: attributes.title?.slice(0, 150), body: attributes.body?.slice(0, 800),
+      }));
+    },
     latestUpload(id) {
       const response = asc(['builds', 'list', '--app', id, '--platform', 'IOS', '--limit', '1',
         '--sort=-uploadedDate', '--include', 'preReleaseVersion']);

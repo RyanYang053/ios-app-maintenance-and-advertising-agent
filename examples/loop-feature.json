@@ -1,0 +1,27 @@
+{
+  "key": "restore-last-workout",
+  "problem": "Users lose their last selected workout after the app is closed.",
+  "proposedChange": "Resume the last saved workout on relaunch.",
+  "userFlow": "Select a workout, save, quit, relaunch and resume.",
+  "signals": [
+    { "kind": "app-review", "ref": "review-id-only", "date": "2026-11-10", "observation": "Reporter had to select the same workout again." },
+    { "kind": "device-test", "ref": "reproduction-log-id", "date": "2026-11-11", "observation": "Reproduced on iPhone following a cold start." }
+  ],
+  "acceptance": [
+    "After a cold start, the last saved workout is available to resume.",
+    "A workout closed without saving does not replace the saved workout."
+  ],
+  "impact": {
+    "metric": "resume completion share",
+    "scope": "Canada, all new iOS installs, exact resume-event query",
+    "source": "App events export",
+    "baseline": 0.33,
+    "baselineStart": "2026-11-08",
+    "baselineEnd": "2026-11-14",
+    "baselineSample": 85,
+    "target": 0.50,
+    "direction": "higher",
+    "minSample": 40,
+    "days": 7
+  }
+}

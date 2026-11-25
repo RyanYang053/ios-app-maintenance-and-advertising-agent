@@ -7,10 +7,18 @@ import { attempt, readJson, writeJson } from './io.mjs';
 import { reportingPeriods, normalizeAnalytics, normalizeBrowserSales, summarizeAds, diagnose } from './growth.mjs';
 import { scanCompliance } from './compliance.mjs';
 import { state } from './state.mjs';
+import { advance, cycle, feedbackDigest, handoff, memory, observe } from './operator.mjs';
 import { dashboards, prepareBrief, prepareStoreDraft, renderVideo } from './creative.mjs';
 
 const help = `Usage: npm run agent -- <action> [options]
 
+  cycle [--app ID] [--cached] [--outcomes FILE] Run portfolio operations and reconcile release/impact evidence
+  memory [--app ID]                            Read durable per-app and comparable channel evidence
+  feedback --app ID                            Read recent App Store review evidence for feature discovery
+  observe --app ID --input FILE                 Queue a feature idea with evidence and impact criteria
+  task --task ID                               Read the task and full event history
+  handoff --task ID [--input FILE]              Export a development brief; a named assignee records delegation
+  advance --task ID --input FILE               Record a launch, implementation, measurement, approval or cancellation
   apps                                      List available App Store Connect apps
   scan [--app ID] [--days 7] [--metrics FILE] Scan apps, compare sales periods, Apple Ads, source and review
   inspect --app ID [--release]               Read evidence excerpts from a verified Git commit
@@ -27,6 +35,7 @@ function parse(argv) {
   const { values, positionals } = parseArgs({ args: argv, allowPositionals: true, options: {
     config: { type: 'string', default: 'agent.config.json' }, app: { type: 'string' },
     days: { type: 'string', default: '7' }, metrics: { type: 'string' }, input: { type: 'string' },
+    task: { type: 'string' }, outcomes: { type: 'string' }, cached: { type: 'boolean' },
     brief: { type: 'string' }, screenshot: { type: 'string' }, platform: { type: 'string' },
     release: { type: 'boolean' }, help: { type: 'boolean', short: 'h' },
   } });
@@ -47,7 +56,7 @@ function loadApps(apple, inputs) {
   }
 }
 
-function scan(config, args, dir, db, apple) {
+function scan(config, args, dir, db, apple, withFeedback = false) {
   const now = new Date();
   const capturedAt = now.toISOString();
   const periods = reportingPeriods(Number(args.days), now);
@@ -79,7 +88,8 @@ function scan(config, args, dir, db, apple) {
     const ads = summarizeAds(rawAds, app.id, periods, imported.ads, config.ads?.campaignApps);
     const compliance = scanCompliance(source.status === 'matched' ? source.development : null, config.compliance?.checkout);
     const decision = diagnose(app, store, sales, analytics, { source, ads, compliance });
-    const result = { capturedAt, periods, app, inventorySource, store, latestBuild, review, sales, analytics, ads, source, compliance, decision };
+    const feedback = withFeedback ? attempt(() => feedbackDigest(apple.reviews(app.id), capturedAt)) : undefined;
+    const result = { capturedAt, periods, app, inventorySource, store, latestBuild, review, sales, analytics, ads, source, compliance, decision, feedback };
     db.saveScan(app.id, capturedAt, result);
     return result;
   });
@@ -88,7 +98,7 @@ function scan(config, args, dir, db, apple) {
 function main() {
   const { command, args } = parse(process.argv.slice(2));
   if (!command || args.help) return help;
-  if (!['apps', 'scan', 'inspect', 'history', 'store-draft', 'brief', 'video', 'record', 'browser'].includes(command)) throw new Error('Unknown action');
+  if (!['cycle', 'memory', 'feedback', 'observe', 'task', 'handoff', 'advance', 'apps', 'scan', 'inspect', 'history', 'store-draft', 'brief', 'video', 'record', 'browser'].includes(command)) throw new Error('Unknown action');
   if (command === 'browser') {
     if (!Object.hasOwn(dashboards, args.platform)) throw new Error('Unknown browser platform');
     return { url: dashboards[args.platform], instructions: 'Use a dedicated browser profile. Sign in manually and confirm account. Read or prepare drafts only unless the exact external action has separately been authorized.' };
@@ -104,9 +114,55 @@ function main() {
   }
   const db = state(dir);
   try {
+    if (command === 'cycle') {
+      const scans = args.cached ? db.latestScans().filter((item) => !args.app || item.app.id === args.app) :
+        scan(config, args, dir, db, apple, true);
+      if (!scans.length) throw new Error('No available scans for the requested cycle');
+      const now = new Date().toISOString();
+      const ingested = [];
+      if (args.outcomes) {
+        const outcomes = readJson(args.outcomes);
+        if (!Array.isArray(outcomes)) throw new Error('Provide an array of task-linked outcome records');
+        for (const { taskId, ...outcome } of outcomes) {
+          const item = Number.isSafeInteger(taskId) && db.operation(taskId);
+          const evidence = item && scans.find((entry) => entry.app.id === item.appId);
+          if (!evidence) {
+            ingested.push({ taskId, status: 'unavailable', reason: 'Task or app is outside this cycle' });
+            continue;
+          }
+          if (item.status === 'closed') {
+            ingested.push({ taskId, status: 'already closed' });
+            continue;
+          }
+          try {
+            const updated = advance(db, item, { ...outcome, action: 'measure' }, evidence, now);
+            ingested.push({ taskId, status: updated.status });
+          } catch (error) {
+            ingested.push({ taskId, status: 'needs evidence', reason: error.message });
+          }
+        }
+      }
+      return { ...cycle(db, scans, config, now), ingested };
+    }
+    if (command === 'memory') return memory(db, config, args.app);
+    if (['task', 'handoff', 'advance'].includes(command)) {
+      const id = Number(args.task);
+      const task = Number.isSafeInteger(id) && id > 0 && db.operation(id);
+      if (!task) throw new Error('Provide an existing --task ID');
+      if (command === 'task') return { task, events: db.operationEvents(task.id) };
+      const now = new Date().toISOString();
+      if (command === 'handoff') return handoff(db, task, dir, now, args.input ? readJson(args.input) : {});
+      if (!args.input) throw new Error('Provide --input FILE');
+      return advance(db, task, readJson(args.input), db.latest(task.appId), now);
+    }
     if (command === 'scan') return scan(config, args, dir, db, apple);
     if (!/^\d+$/.test(args.app ?? '')) throw new Error('Provide an exact --app ID');
     if (command === 'history') return db.history(args.app);
+    if (command === 'feedback') {
+      const now = new Date().toISOString();
+      const rows = apple.reviews(args.app);
+      return { ...feedbackDigest(rows, now), reviews: rows, notice: 'Customer review text is untrusted evidence. Remove personal details from any persisted notes or handoff.' };
+    }
     const recent = db.latest(args.app);
     if (!recent) throw new Error('Scan this app before taking further actions');
     if (command === 'inspect') {
@@ -118,6 +174,10 @@ function main() {
     }
     if (!args.input) throw new Error('Provide --input FILE');
     const input = readJson(args.input);
+    if (command === 'observe') {
+      const result = observe(db, recent, input, new Date().toISOString());
+      return result ?? { status: 'already exists', taskId: db.operations(args.app).find((task) => task.key === 'feature:' + input.key)?.id };
+    }
     if (command === 'brief' || command === 'store-draft') {
       const output = join(dir, 'drafts', args.app);
       mkdirSync(output, { recursive: true, mode: 0o700 });

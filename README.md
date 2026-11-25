@@ -11,6 +11,18 @@
 | 运营与推广 | 根据转化漏斗给出行动和目标指标。保存商店页变更稿、分平台推广简报、可归因链接、12 秒竖版 MP4 和实验结果 |
 | 浏览器操作 | OpenCode 可连用户已登录的专用 Chrome。也可由提供电脑操作能力的 Codex 或 Claude Code 执行同一工作流 |
 
+## 持续运营
+
+`cycle` 扫描当前 Apple 连接可见的 App，查看审核、广告、销售和评论信号，自动创建维护和推广任务，核对待上线版本，并标记到期的效果复查。跨对话的结果、验收和任务历史保存在本地 SQLite；`memory` 会读取实际实验数据供下一轮使用。
+
+```bash
+npm run agent -- cycle
+npm run agent -- memory
+npm run agent -- task --task 1
+```
+
+在 OpenCode 中选择 `ios-business-operator` 运行完整运营工作流。开发交付和独立验收分别使用 `ios-feature-builder` 与 `ios-acceptance-reviewer`，也可以把任务 JSON 交给你选的开发 Agent。配置、状态和输入样例见 [持续运营手册](docs/operating-loop.md)。
+
 ## 开始使用
 
 需要 Node.js 22.13+、Git。自动发现 GitHub 私有仓库需要已登录的 `gh`，远程克隆需要已有的 Git 读取权限。合规扫描需要 Bash 和上游列明的工具。视频需要 Chromium/Chrome、FFmpeg 和 FFprobe。
