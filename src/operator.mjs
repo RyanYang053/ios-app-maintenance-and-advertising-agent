@@ -150,6 +150,23 @@ export function observe(db, scan, input, now) {
   }), now);
 }
 
+export function observeStore(db,scan,input,now) {
+  const allowed=new Set(['name','subtitle','description','promotionalText','keywords','screenshots','appPreview','ageRating','category','availability','pricing','subscription','privacy','reviewNotes','reviewResponse']);
+  const version=[scan?.store?.data?.live,scan?.store?.data?.candidate].find(v=>v?.id===input.versionId);
+  const elapsed=Date.parse(now)-Date.parse(scan?.capturedAt);
+  if(scan?.store?.status!=='ok'||!version||!Number.isFinite(elapsed)||elapsed<0||elapsed>72*3600000||
+    !allowed.has(input.field)||!text(input.evidence)||!text(input.problem)||!text(input.proposedChange)||
+    typeof input.before!=='string'||!text(input.after)||input.before===input.after||
+    !text(input.locale)||!dayStamp(input.observedOn)||input.observedOn>date(now)||
+    Date.parse(date(now))-Date.parse(input.observedOn)>3*DAY) throw new Error('Use current App Store evidence, exact version, locale, field and approved-change preview');
+  if(db.operations(scan.app.id).some(t=>t.kind==='store-maintenance'&&t.storeVersionId===version.id&&!['closed','cancelled'].includes(t.status)))
+    throw new Error('Existing maintenance task for this version; review and resolve it before opening a new one');
+  const key='store-proactive:'+version.id+':'+input.field+':'+input.locale+':'+input.observedOn;
+  return db.enqueue(baseTask(scan,'store-maintenance',key,now,{priority:2,owner:'app-store-operator',
+    storeVersionId:version.id,problem:input.problem,proposedChange:input.proposedChange,
+    plannedStoreChange:{field:input.field,locale:input.locale,before:input.before,after:input.after,observedOn:input.observedOn,evidence:input.evidence}}),now);
+}
+
 export function cycle(db, scans, config, now) {
   const results = [];
   for (const scan of scans) {
