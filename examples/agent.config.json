@@ -19,6 +19,11 @@
       }
     ]
   },
+  "sourceDiscovery": {
+    "roots": [
+      "~/Developer"
+    ]
+  },
   "bindings": {},
   "compliance": {
     "checkout": ".agent-data/upstream/compliance"

@@ -4,6 +4,12 @@ const APP = '1234567890';
 const SHA = 'abcdef0123456789abcdef0123456789abcdef01';
 
 export const schemas = {
+  'source-confirm': {
+    purpose: 'Confirm which discovered local copy is the shipping source for an app. Stored in the ledger; scan then verifies it.',
+    fields: { appId: 'exact App Store ID', path: 'candidate path from discover-sources', folder: 'candidate folder ("" for repo root)',
+      evidence: 'why this copy: owner confirmation, origin remote, newest commit, live-version tag' },
+    example: { appId: APP, path: '/Users/you/Developer/RepCount', folder: 'ios', evidence: 'Owner confirmed; origin github.com/you/RepCount; has tag v1.2.0' },
+  },
   'release-confirm': {
     purpose: 'Record which commit built the live App Store version when no Git tag matches. Git ancestry is verified against the matched source.',
     fields: { appId: 'exact App Store ID', version: 'live version from the latest scan', build: 'optional live build number',

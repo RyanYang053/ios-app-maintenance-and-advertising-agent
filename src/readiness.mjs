@@ -52,8 +52,8 @@ export function readiness(root,{live=false,probeCommand=probe,inventory=null}={}
   put('asc-cli',asc?'PASS':'BLOCKED','Install the documented ASC CLI; browser exports are a limited fallback');
   const specs=cfg.github?.repos??[];
   const sources=(Array.isArray(specs)&&specs.some(x=>x&&(x.path||x.repo)&&!placeholder(x.path)&&!placeholder(x.repo)))||
-    (typeof cfg.github?.owner==='string'&&cfg.github.owner.length>0);
-  put('source-config',sources?'PASS':'BLOCKED','Configure real local/GitHub app sources or an authorized owner; source matches verified during scan');
+    (typeof cfg.github?.owner==='string'&&cfg.github.owner.length>0)||(Array.isArray(cfg.sourceDiscovery?.roots)&&cfg.sourceDiscovery.roots.length>0);
+  put('source-config',sources?'PASS':'BLOCKED','Configure sourceDiscovery.roots (then discover-sources), github.repos or github.owner; matches are verified during scan');
   if(cfg.github?.owner)put('gh-cli',probeCommand('gh',['--version'])?'PASS':'BLOCKED','Required for owner repository discovery; auth checked during scan');
   let scopedIds=[];
   try{scopedIds=accountScopes(cfg);put('account-routing','PASS',scopedIds.length?'Explicit app profiles configured':'Shared account mode; not credential isolation');}catch{put('account-routing','BLOCKED','Invalid per-app profiles; fix configuration');}

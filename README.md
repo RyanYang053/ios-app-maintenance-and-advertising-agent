@@ -77,6 +77,20 @@ npm run agent -- record --app 1234567890 --input experiment.json
 - `record` 接收 `hypothesis` 和 `status`，发布时加 `publishedUrl`，测量时加 `outcome` 和 `source`。扫描和实验记录存于本机 SQLite。
 - 商店写入、审核提交、社媒发布和付费投放由操作流程逐项确认。公开发布后要核对链接和内容，才算实验开始。
 
+### 9 个 app 快速开始（所有者在 Mac 上执行一次）
+
+```bash
+npm ci && node scripts/setup-local.mjs
+asc auth login                                          # 你自己登录 App Store Connect
+node scripts/configure-apps.mjs --market US --channels tiktok,instagram,youtube --currency USD --roots ~/Developer,~/Projects --dry-run
+node scripts/configure-apps.mjs --market US --channels tiktok,instagram,youtube --currency USD --roots ~/Developer,~/Projects
+node scripts/operator.mjs doctor --live
+node scripts/operator.mjs discover-sources              # 按 Bundle ID 找本地源码，多个副本全部列出
+node scripts/operator.mjs status                        # 每个 app 哪些步骤已完成、下一条命令是什么
+```
+
+`configure-apps.mjs` 只读你账号下的 app 清单，给缺配置的 app 补上默认推广配置（付费推广默认关闭），原有配置保留，并备份原文件。`discover-sources` 只扫你指定的根目录，只读 Xcode 项目文件里的 Bundle ID，跳过 `node_modules`、`Pods` 和隐藏目录，不读任何 agent 的对话记录。确认用哪个副本后执行 `source-confirm`，结果记在本地数据库，以后每次 `scan` 都会用到。读代码用 `inspect --release`（文件索引）、`--file 路径`（读单个文件，疑似密钥的行会被隐去）和 `--query 关键词`（搜索）。
+
 ### 推广工作流（Agent 自主构思，发布需审批）
 
 ```bash

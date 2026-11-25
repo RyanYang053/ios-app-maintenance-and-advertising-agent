@@ -40,10 +40,13 @@ export const actions = Object.freeze({
   'ads-plan': 'Preview an exact Apple Ads campaign for owner approval; spends nothing',
   video: 'Check, render and review a storyboard video (or legacy brief + screenshot) inside the operator workspace',
   record: 'Record observed experiment evidence locally',
-  browser: 'Return the approved platform dashboard URL'
+  browser: 'Return the approved platform dashboard URL',
+  'discover-sources': 'Find local Xcode projects matching each app bundle ID under owner-configured roots',
+  'source-confirm': 'Confirm one discovered source for an app; kept in the ledger and used by scan',
+  status: 'Per-app workflow checklist with the next command to run'
 });
 const platforms = ['asc','ads','tiktok','instagram','youtube','x','reddit','linkedin'];
-const newInputs = ['release-confirm','storyboard','content-plan','ads-plan'];
+const newInputs = ['source-confirm','release-confirm','storyboard','content-plan','ads-plan'];
 const appRequired = new Set([...newInputs,'lesson-retire','screenshot','ppo-plan','ppo-result','rank-import','health-scan','keyword-plan','keyword-check','health-record','forecast','learning-review','context','lesson','task','handoff','advance','dispatch-preview','video','feedback','inspect','history','observe','research','store-observe','store-draft','brief','record']);
 const taskRequired = new Set(['task','handoff','dispatch-preview','advance']);
 export const inputRequired = new Set([...newInputs,'lesson-retire','screenshot','ppo-plan','ppo-result','rank-import','keyword-check','health-record','forecast','lesson','observe','advance','research','store-observe','store-draft','brief','record']);
@@ -58,13 +61,13 @@ function inside(root, path) {
 export function buildInvocation(root, action, args = {}) {
   if (!Object.hasOwn(actions, action)) throw new Error('Unsupported operator action');
   const allowed = new Set([
-    ...(['scan','cycle','memory','portfolio',...appRequired].includes(action)?['app']:[]),
+    ...(['scan','cycle','memory','portfolio','discover-sources',...appRequired].includes(action)?['app']:[]),
     ...(taskRequired.has(action)?['task']:[]),
     ...(['scan','cycle'].includes(action)?['days']:[]),
     ...(action==='cycle'?['cached','outcomesJson']:[]),
     ...(['apps','scan','cycle'].includes(action)?['metricsJson']:[]),
     ...(inputAllowed.has(action)?['inputJson']:[]),
-    ...(action==='inspect'?['release']:[]),
+    ...(action==='inspect'?['release','file','query']:[]),
     ...(action==='browser'?['platform']:[]),
     ...(action==='video'?['brief','screenshot','storyboard']:[]),
     ...(action==='screenshot'?['screenshot']:[])
@@ -85,6 +88,10 @@ export function buildInvocation(root, action, args = {}) {
     argv.push('--days',String(args.days));
   }
   for (const key of ['cached','release']) if (args[key]===true) argv.push('--'+key);
+  for (const key of ['file','query']) if (args[key]!==undefined) {
+    if (typeof args[key]!=='string'||!args[key].trim()||args[key].length>300||/[\0\n]/.test(args[key])) throw new Error('Invalid --'+key);
+    argv.push('--'+key+'='+args[key]);
+  }
   if (action==='browser') {
     if (!platforms.includes(args.platform)) throw new Error('Invalid platform');
     argv.push('--platform',args.platform);

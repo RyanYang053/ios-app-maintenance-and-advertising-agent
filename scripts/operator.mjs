@@ -23,7 +23,7 @@ function loadEvidence(file,app) {
 async function main() {
   const {values:v,positionals:p}=parseArgs({allowPositionals:true,options:{
     app:{type:'string'},task:{type:'string'},days:{type:'string'},cached:{type:'boolean'},release:{type:'boolean'},
-    platform:{type:'string'},brief:{type:'string'},screenshot:{type:'string'},storyboard:{type:'string'},input:{type:'string'},
+    platform:{type:'string'},brief:{type:'string'},screenshot:{type:'string'},storyboard:{type:'string'},query:{type:'string'},input:{type:'string'},
     metrics:{type:'string'},outcomes:{type:'string'},name:{type:'string'},file:{type:'string'},help:{type:'boolean'},live:{type:'boolean'}
   }});
   if(v.help||p.length===0) return {usage:'node scripts/operator.mjs ACTION [options]',actions:Object.keys(actions),references:['guide','skills','skill --name NAME [--file FILE]','schema [--name ACTION]','doctor [--live]'],evidence:'--input/--metrics/--outcomes accept stdin (-) or JSON under stateDir/imports/APP_ID. Run schema --name ACTION for exact fields and an example.'};

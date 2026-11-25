@@ -8,6 +8,9 @@
   "github": {
     "repos": []
   },
+  "sourceDiscovery": {
+    "roots": []
+  },
   "bindings": {},
   "compliance": {
     "checkout": ".agent-data/upstream/compliance"

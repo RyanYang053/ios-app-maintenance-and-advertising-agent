@@ -175,3 +175,34 @@ export function inspectSource(source) {
     return { file, excerpt: lines.slice(0, 32).filter((line) => !/token|api.key|password|secret|private.key|credential/i.test(line)).join('\n').slice(0, 2200) };
   });
 }
+
+// Read-only code access at an exact commit, scoped to the app folder. Secret-looking lines are redacted.
+const CODE = /\.(swift|m|mm|h|c|cpp|kt|java|dart|ts|tsx|js|jsx|json|plist|strings|stringsdict|xcstrings|md|txt|yml|yaml|storyboard|xib|entitlements|xcprivacy|gradle|podspec|resolved)$/i;
+const SECRET = /(api[_-]?key|secret|token|password|passwd|private[_-]?key|client[_-]?secret|bearer|authorization|-----BEGIN)/i;
+const scoped = (source, file) => !source.folder || file.startsWith(source.folder + '/');
+export function codeIndex(source, limit = 600) {
+  const files = tree(source.path, source.sha).filter((e) => scoped(source, e.file) && CODE.test(e.file));
+  return { total: files.length, truncated: files.length > limit,
+    files: files.slice(0, limit).map(({ file, size }) => ({ file, size })) };
+}
+export function readCode(source, file) {
+  if (typeof file !== 'string' || !file || file.includes('..') || !CODE.test(file)) throw new Error('Read a text source file listed by inspect (no path traversal)');
+  const entry = tree(source.path, source.sha).find((e) => e.file === file && scoped(source, e.file));
+  if (!entry) throw new Error('File not found in the app folder at ' + source.sha.slice(0, 12) + '; use inspect without --file for the index');
+  const lines = git(source.path, ['cat-file', 'blob', entry.oid]).split('\n');
+  return { file, sha: source.sha, lines: lines.length, redacted: lines.filter((l) => SECRET.test(l)).length,
+    text: lines.map((l, i) => (i + 1) + ': ' + (SECRET.test(l) ? '[redacted: possible secret]' : l.slice(0, 400))).join('\n').slice(0, 120_000) };
+}
+export function searchCode(source, query) {
+  if (typeof query !== 'string' || query.trim().length < 2 || query.length > 100) throw new Error('Search for 2-100 characters');
+  let out = '';
+  try {
+    out = run('git', ['-C', source.path, 'grep', '-n', '-I', '-i', '--fixed-strings', '--max-count=20', '-e', query, source.sha, '--',
+      ...(source.folder ? [source.folder] : ['.'])], { timeout: 30_000 });
+  } catch (error) { if (error.status !== 1) throw new Error('Code search failed'); }
+  const hits = out.split('\n').filter(Boolean).map((line) => {
+    const [, file, number, text] = line.match(/^[^:]+:([^:]+):(\d+):(.*)$/) ?? [];
+    return file && CODE.test(file) ? { file, line: Number(number), text: SECRET.test(text) ? '[redacted]' : text.trim().slice(0, 240) } : null;
+  }).filter(Boolean);
+  return { query, sha: source.sha, hits: hits.slice(0, 80), truncated: hits.length > 80 };
+}
