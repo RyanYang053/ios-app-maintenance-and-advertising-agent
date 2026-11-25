@@ -1,0 +1,16 @@
+{
+  "name": "ios-app-maintenance-and-advertising-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "agent": "node src/cli.mjs",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "gsap": "3.14.2"
+  }
+}

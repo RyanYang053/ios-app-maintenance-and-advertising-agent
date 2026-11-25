@@ -1,0 +1,17 @@
+{
+  "stateDir": ".agent-data",
+  "asc": { "profile": "MyApps" },
+  "ads": {
+    "profile": "MyAppleAds",
+    "accounts": [],
+    "campaignApps": {}
+  },
+  "github": {
+    "repos": [
+      { "repo": "OWNER/REPOSITORY", "folder": "apps/ios" },
+      { "path": "/absolute/path/to/another/local/ios/repository" }
+    ]
+  },
+  "bindings": {},
+  "compliance": { "checkout": ".agent-data/upstream/compliance" }
+}

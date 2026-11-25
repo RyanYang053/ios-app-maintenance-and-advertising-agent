@@ -1,0 +1,20 @@
+[
+  { "name": "OpenCode", "url": "https://github.com/anomalyco/opencode", "license": "MIT", "version": "1.19.6" },
+  { "name": "App Store Connect CLI", "url": "https://github.com/rorkai/App-Store-Connect-CLI", "license": "MIT", "version": "7.5.0" },
+  { "name": "ASC Skills", "url": "https://github.com/rudrankriyam/asc-skills", "license": "MIT", "checkout": "asc-skills",
+    "revision": "13194595ab6e438f3d2695101d654510c527731d",
+    "skills": ["skills/asc-submission-health", "skills/asc-aso-audit", "skills/asc-analytics-reports"] },
+  { "name": "App Store Compliance", "url": "https://github.com/mjmirza/app-store-compliance",
+    "license": "LicenseRef-OpenRoots-ORA-2.3", "author": "Mirza Iqbal (mjmirza)", "checkout": "compliance",
+    "revision": "7f7f0377620b07f062733f9973180e45240fbe9a" },
+  { "name": "OpenDesign", "url": "https://github.com/nexu-io/open-design", "license": "Apache-2.0", "checkout": "open-design",
+    "revision": "5fdcc3db1e31bd4fa70f673041b78e87977507c3",
+    "skills": ["skills/design-brief", "skills/motion-design", "skills/video-hyperframes"] },
+  { "name": "Marketing Skills", "url": "https://github.com/coreyhaines31/marketingskills", "license": "MIT", "checkout": "marketing",
+    "revision": "8fd2fcade2fd6629026e9dfe6d133b55b36968b9",
+    "skills": ["skills/social", "skills/analytics", "skills/launch"] },
+  { "name": "HyperFrames", "url": "https://github.com/heygen-com/hyperframes", "license": "Apache-2.0", "version": "0.9.95" },
+  { "name": "Remotion", "url": "https://github.com/remotion-dev/skills", "license": "Remotion License for the rendering engine", "integration": "optional reference" },
+  { "name": "Chrome DevTools MCP", "url": "https://github.com/ChromeDevTools/chrome-devtools-mcp", "license": "Apache-2.0", "version": "1.14.0" },
+  { "name": "Postiz", "url": "https://github.com/gitroomhq/postiz-app", "license": "AGPL-3.0", "integration": "optional reference" }
+]

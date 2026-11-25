@@ -1,0 +1,10 @@
+{
+  "version": "1.2.0",
+  "versionId": "REPLACE_WITH_ASC_VERSION_ID",
+  "locale": "en-CA",
+  "hypothesis": "A more specific subtitle helps qualified users recognize the app",
+  "metric": "Apple-reported conversion for Canada",
+  "changes": [
+    { "field": "subtitle", "before": "Workout Tracker", "after": "Count Your Workout Reps", "observedAt": "2026-11-25T14:00:00Z" }
+  ]
+}
