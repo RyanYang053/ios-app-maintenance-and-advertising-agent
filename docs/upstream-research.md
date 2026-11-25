@@ -2,7 +2,7 @@
 
 | 上游 | 在项目中的用途 | 边界 |
 | --- | --- | --- |
-| [ASC CLI](https://github.com/rorkai/App-Store-Connect-CLI) 和 [ASC Skills](https://github.com/rudrankriyam/asc-skills) | 读取 App、版本、build、Sales and Trends 和广告报告。安装 submission health、ASO audit、Analytics 三个 Skills | App Store Connect 团队密钥和 Apple Ads 凭据是两套权限。App Analytics 漏斗可以通过可追溯导入补充 |
+| [ASC CLI](https://github.com/rorkai/App-Store-Connect-CLI) 和 [ASC Skills](https://github.com/rorkai/app-store-connect-cli-skills) | 读取 App、版本、build、Sales and Trends 和广告报告。安装 12 项 ASC Skills（审核、ASO、分析、CLI、metadata、localization、截图、定价、订阅、crash、release notes、release flow） | App Store Connect 团队密钥和 Apple Ads 凭据是两套权限。App Analytics 漏斗可以通过可追溯导入补充 |
 | [App Store Compliance](https://github.com/mjmirza/app-store-compliance) | 在临时 Git 快照调用 standalone guard，并记录扫描版本、范围、风险及输出 | 当前版本采用 [ORA 2.3](https://openroots.org/licenses/ora/2.3)。作为可选外部依赖。规则命中需要核实，平台后台、设备行为及最终审核仍需验证 |
 | [OpenDesign](https://github.com/nexu-io/open-design) | 固定 `design-brief`、`motion-design`、`video-hyperframes`，覆盖受众、节奏、分镜和视觉方向 | OpenDesign 的分镜模板是创意输入。可直接渲染的轨道由本仓模板生成 |
 | [HyperFrames](https://github.com/heygen-com/hyperframes) | 默认代码视频引擎。固定 CLI 版本运行 HTML → MP4，视频时间轴使用 GSAP | CLI 渲染时关闭遥测。GSAP 包遵循上游许可。真实截图由用户提供 |
