@@ -1,0 +1,98 @@
+{
+  "appId": "1234567890",
+  "verifiedVersion": "1.2.0",
+  "listingSha": "abcdef0123456789abcdef0123456789abcdef01",
+  "format": "9:16",
+  "concept": {
+    "audience": "Gym-goers who lose count mid-set",
+    "insight": "Reviews say counting breaks focus",
+    "angle": "Hands-free counting",
+    "platforms": [
+      "tiktok",
+      "instagram"
+    ],
+    "openDesign": {
+      "designBrief": "Audience, problem, tone: confident and calm; dark theme with lime accent.",
+      "beatMap": "Hook 0-2.5s problem; demo 2.5-7s; proof 7-10s; CTA 10-13s",
+      "references": [
+        "design-brief",
+        "motion-design",
+        "video-hyperframes"
+      ]
+    }
+  },
+  "theme": {
+    "background": "#0f1a17",
+    "surface": "#1d3a32",
+    "text": "#f2f7ee",
+    "accent": "#c6f876",
+    "headingFont": "Montserrat",
+    "bodyFont": "Inter"
+  },
+  "claims": [
+    {
+      "id": "auto-count",
+      "text": "Counts reps automatically",
+      "evidence": "RepCounter.swift L40-88 at shipped commit; capture rep-demo.mp4",
+      "kind": "source"
+    }
+  ],
+  "scenes": [
+    {
+      "id": "hook",
+      "layout": "title",
+      "duration": 2.5,
+      "headline": "Lost count again?",
+      "motion": "pop"
+    },
+    {
+      "id": "demo",
+      "layout": "device",
+      "duration": 4.5,
+      "headline": "Your phone counts every rep",
+      "media": {
+        "asset": "rep-demo.mp4"
+      },
+      "claimIds": [
+        "auto-count"
+      ]
+    },
+    {
+      "id": "proof",
+      "layout": "list",
+      "duration": 3.5,
+      "headline": "Stay in the set",
+      "items": [
+        "No tapping",
+        "Counts out loud"
+      ],
+      "claimIds": [
+        "auto-count"
+      ]
+    },
+    {
+      "id": "cta",
+      "layout": "cta",
+      "duration": 3,
+      "headline": "Train. We count.",
+      "button": "Get it on the App Store",
+      "media": {
+        "asset": "icon.png"
+      }
+    }
+  ],
+  "captions": [
+    {
+      "start": 0.2,
+      "end": 2.4,
+      "text": "Lost count again?"
+    }
+  ],
+  "audio": {
+    "music": {
+      "asset": "track.mp3",
+      "license": "Licensed from <library>, license ID ..."
+    }
+  },
+  "disclosure": "Made by the developer"
+}

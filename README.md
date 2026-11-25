@@ -8,7 +8,8 @@
 | 查经营数据 | Sales and Trends 下载单位与开发者预计收益，两段可比时间。Apple Ads Platform API 按 App、账户和币种统计广告支出 |
 | 找源代码 | 可配置 GitHub 账户、限定仓库列表或本地目录。检查精确 Bundle ID，记录 Git commit，标记冲突和版本标签 |
 | 查上架风险 | 独立调用 `app-store-compliance` 扫描指定 commit，可读定位、风险级别和合规截止日期。配合 ASC Skills 诊断审核和 ASO |
-| 运营与推广 | 根据转化漏斗给出行动和目标指标。保存商店页变更稿、分平台推广简报、可归因链接、12 秒竖版 MP4 和实验结果 |
+| 运营与推广 | 根据转化漏斗给出行动和目标指标。每个渠道可同时跑一个推广活动，每个活动可发多条帖子；周内容日历；Apple Ads 付费测试需逐项审批 |
+| 推广视频 | Agent 用 OpenDesign 的 design-brief、motion-design、video-hyperframes 自己构思分镜：4 种画幅、7 种版式、录屏、音乐、配音、字幕。先过 HyperFrames `check`，再渲染并导出每个场景的审阅帧 |
 | 浏览器操作 | Claude Code 或 ChatGPT 可通过受权的本地浏览器工具执行同一工作流 |
 
 ## 持续运营
@@ -75,6 +76,29 @@ npm run agent -- record --app 1234567890 --input experiment.json
 - 视频输出是可编辑 HTML 和经过 FFprobe 验证的 1080 × 1920 MP4。截图来自操作者，草稿可用 OpenDesign 细化分镜。
 - `record` 接收 `hypothesis` 和 `status`，发布时加 `publishedUrl`，测量时加 `outcome` 和 `source`。扫描和实验记录存于本机 SQLite。
 - 商店写入、审核提交、社媒发布和付费投放由操作流程逐项确认。公开发布后要核对链接和内容，才算实验开始。
+
+### 推广工作流（Agent 自主构思，发布需审批）
+
+```bash
+node scripts/operator.mjs schema --name storyboard          # 每个 JSON 输入都有字段说明和示例
+node scripts/operator.mjs release-confirm --app ID --input release.json   # 没有 git tag 时确认线上版本对应的 commit
+node scripts/operator.mjs skill --name design-brief         # 再读 motion-design、video-hyperframes
+node scripts/operator.mjs storyboard --app ID --input storyboard.json
+node scripts/operator.mjs video --app ID --storyboard storyboard-XXXX/storyboard.json
+node scripts/operator.mjs content-plan --app ID --input week.json
+node scripts/operator.mjs ads-plan --app ID --input ads.json   # 只生成审批预览，不花钱
+```
+
+- 出处：线上版本有匹配的 git tag，或者 `release-confirm` 记录了经 Git 历史核验的发布 commit。简报、截图、PPO、分镜和 `inspect --release` 两者都接受。
+- 分镜：画面里每个功能、数字、对比或最高级说法都要引用带证据的 claim。文字/背景对比度须达到 WCAG AA。素材只能来自 `assets/APP_ID`。有配音必须加字幕，音乐必须注明授权。
+- 视频：`check` 有错误时不渲染，返回需要修改的元素（`needs-revision`）。渲染后用 FFprobe 核对尺寸、时长和音轨，并在 `review/` 导出每个场景的截帧供 Agent 自查。
+- 推广活动：`published` 开始一个活动，窗口内的后续帖子用 `post`，平台播放/点击用 `signals` 记录（只算相关性，不算安装）。
+- 测量：Apple 隐藏小样本时填 `suppressed: true`、`downloads: null`，记为未知而不是 0，下一轮会换一个变量重测。可选的 `storeTrend` 记录 App Store 搜索下载等前后变化。
+- Apple Ads：需要 `cashCap` > 0，先 `authorize-cost` 记录预算，再用 `ads-plan` 生成含账户、币种、日/总预算、计费方式、结束日期的审批预览。所有者批准后在浏览器建好广告，再用 `ads-launched` 记录回执。
+- 商店文案草稿新增 App 名称、What's New 和 In-App Event 字段。
+- 配置 `loop.apps[ID]`：`maxActivePromotions`（1–6，默认按渠道数最多 3）、`cooldownDays`（默认 7），`channels` 可包含 `apple-ads`。
+
+真实渲染烟测（所有者在本机运行，需要 Chrome、FFmpeg、npm 网络和 `npm ci`）：`RUN_VIDEO_SMOKE=1 node --test test/storyboard.test.mjs`。
 
 架构选择、开源项目链接与验证边界见 [docs/upstream-research.md](docs/upstream-research.md)。
 

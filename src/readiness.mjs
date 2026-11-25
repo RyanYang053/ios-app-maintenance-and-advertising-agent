@@ -65,6 +65,7 @@ export function readiness(root,{live=false,probeCommand=probe,inventory=null}={}
   let gsap=false;try{createRequire(resolve(root,'package.json')).resolve('gsap/dist/gsap.min.js');gsap=true;}catch{}
   const video=gsap&&probeCommand('ffmpeg',['-version'])&&probeCommand('ffprobe',['-version']);
   put('video-prerequisites',video?'PASS':'OPTIONAL','GSAP, FFmpeg and FFprobe; actual HyperFrames/Chromium render still requires a smoke test');
+  put('video-engine',probeCommand(process.platform==='win32'?'npx.cmd':'npx',['--version'])?'PASS':'OPTIONAL','npx runs pinned hyperframes@0.9.95 check and render for storyboard videos; owner smoke test: RUN_VIDEO_SMOKE=1 node --test test/storyboard.test.mjs');
   put('compliance-scanner',cfg.compliance?.checkout&&existsSync(resolve(root,cfg.compliance.checkout))?'PASS':'OPTIONAL','Optional licensed compliance scanner; install only after license review');
   if(live){
     try{
