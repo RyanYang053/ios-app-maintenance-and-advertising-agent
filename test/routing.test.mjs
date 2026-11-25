@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { state } from '../src/state.mjs';
-import { advance, cycle, handoff } from '../src/operator.mjs';
+import { advance, cycle, handoff, observeStore } from '../src/operator.mjs';
 import { developerPreview, dispatchDevelopment } from '../src/developer-queue.mjs';
 
 const time = '2026-11-25T16:00:00Z';
@@ -104,4 +104,19 @@ else if (args[1]==='create') {
   const pendingPreview = developerPreview(second, config);
   const pending = db.updateOperation(second, { dispatch: { status: 'pending', fingerprint: pendingPreview.fingerprint } }, 'dispatch-started', time);
   assert.throws(() => dispatchDevelopment(db, pending, config, { ...approval, fingerprint: pendingPreview.fingerprint }, time), /uncertain/);
+});
+
+test('proactive store maintenance requires matching fresh post-change evidence',t=>{
+  const {db}=workspace(t);
+  const before=fixture([]);
+  const plan={versionId:'new',field:'subtitle',locale:'en-CA',before:'Old',after:'New',
+    observedOn:'2026-11-25',evidence:'App Store listing snapshot',problem:'Unclear subtitle',proposedChange:'Clarify the benefit'};
+  const task=observeStore(db,before,plan,time);
+  assert.equal(task.kind,'store-maintenance');
+  assert.throws(()=>observeStore(db,before,plan,time),/Existing maintenance/);
+  const receipt={action:'store-resolved',versionId:'new',field:'subtitle',locale:'en-CA',before:'Old',after:'New',
+    approvalReference:'approved preview',evidence:'Verified field in Apple',observedAt:'2026-11-25T16:30:00Z'};
+  assert.throws(()=>advance(db,task,{...receipt,locale:'en-US'},{...before,capturedAt:later},later));
+  assert.throws(()=>advance(db,task,receipt,before,later));
+  assert.equal(advance(db,task,receipt,{...before,capturedAt:later},later).status,'closed');
 });
