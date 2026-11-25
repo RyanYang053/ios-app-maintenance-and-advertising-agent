@@ -40,7 +40,9 @@
         "developmentQueue": {
           "repository": "OWNER/REPOSITORY",
           "assignee": "development-agent"
-        }
+        },
+        "shareAggregateLearning": false,
+        "receiveAggregateLearning": false
       }
     },
     "portfolioHoursPerCycle": 4,

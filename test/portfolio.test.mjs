@@ -40,6 +40,8 @@ test('durable research, dedupe, failed campaigns, unknown economics and ranking'
     assert.equal(channel.attributionBasedNetPerHour,20);
     assert.equal(plan.apps[1].channels[0].observedContributionPerInstall,null);
     assert.equal(plan.apps[0].channels[1].cpa,null);
-    assert.equal(portfolioPlan(db,config,'2027-03-01T15:00:00Z').apps[0].cohort,null);
+    assert.equal(portfolioPlan(db,config,'2027-03-01T15:00:00Z','123').apps[0].cohort,null);
+    assert.equal(plan.apps[0].cohort,null);
+    assert.ok(portfolioPlan(db,config,now,'123').apps[0].cohort);
   }finally{db.close();}
 });

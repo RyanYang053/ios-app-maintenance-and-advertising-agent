@@ -12,8 +12,9 @@ const at = (day) => new Date(Date.UTC(2026, 10, day, 14)).toISOString();
 const date = (time) => new Date(time).toISOString().slice(0, 10);
 const SHA = 'a'.repeat(40);
 const config = { loop: { hourlyRate: 30, apps: {
+  '101': {shareAggregateLearning:true}, '202': {shareAggregateLearning:true},
   '123': { channels: ['youtube'], audienceGroup: 'fitness', market: 'CA', minimumDownloads: 10, maxCpa: 5 },
-  '456': { channels: ['youtube'], audienceGroup: 'fitness', market: 'CA' },
+  '456': { channels: ['youtube'], audienceGroup: 'fitness', market: 'CA', receiveAggregateLearning:true },
   '789': { channels: ['youtube'], audienceGroup: 'fitness', market: 'US' },
 } } };
 
@@ -80,7 +81,7 @@ test('transfer requires multiple apps with comparable market, currency and labor
   for (const [idx, appId] of ['101', '101', '202'].entries()) {
     db.enqueue({ appId, key: 'test:' + idx, kind: 'promotion', status: 'closed', channel: 'youtube',
       publication: { mode: 'organic' },
-      policy: { currency: 'CAD', hourlyRate: 30, measurementDays: 7, market: 'CA', audienceGroup: 'fitness' },
+      policy: { currency: 'CAD', hourlyRate: 30, measurementDays: 7, market: 'CA', audienceGroup: 'fitness', shareAggregateLearning:true },
       outcome: { learningEligible: true, totalCost: 10, downloads: 10 } }, at(1));
   }
   const ca = fixture('456', at(2));
@@ -88,6 +89,10 @@ test('transfer requires multiple apps with comparable market, currency and labor
   db.saveScan('456', at(2), ca);
   db.saveScan('789', at(2), us);
   assert.equal(memory(db, config, '456')[0].promotionEvidence[0].scope, 'matched-apps');
+  const isolated=structuredClone(config);isolated.loop.apps['456'].receiveAggregateLearning=false;
+  assert.deepEqual(memory(db,isolated,'456')[0].promotionEvidence,[]);
+  const revoked=structuredClone(config);revoked.loop.apps['101'].shareAggregateLearning=false;
+  assert.deepEqual(memory(db,revoked,'456')[0].promotionEvidence,[]);
   assert.deepEqual(memory(db, config, '789')[0].promotionEvidence, []);
 });
 

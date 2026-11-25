@@ -1,8 +1,11 @@
 import { execFile } from 'node:child_process';
 import { readFileSync, realpathSync } from 'node:fs';
 import { resolve, relative, isAbsolute, sep } from 'node:path';
+import { appFolder } from './app-context.mjs';
 
 export const actions = Object.freeze({
+  context: 'Read only the selected app knowledge, progress and skill revisions',
+  lesson: 'Record an app-specific skill lesson from closed outcomes',
   apps: 'List authorized Apple apps',
   scan: 'Scan Apple data, release status, compliance and growth signals; save local evidence',
   cycle: 'Run portfolio operations and reconcile release or impact evidence',
@@ -25,9 +28,9 @@ export const actions = Object.freeze({
   browser: 'Return the approved platform dashboard URL'
 });
 const platforms = ['asc','ads','tiktok','instagram','youtube','x','reddit','linkedin'];
-const appRequired = new Set(['feedback','inspect','history','observe','research','store-observe','store-draft','brief','record']);
+const appRequired = new Set(['context','lesson','task','handoff','advance','dispatch-preview','video','feedback','inspect','history','observe','research','store-observe','store-draft','brief','record']);
 const taskRequired = new Set(['task','handoff','dispatch-preview','advance']);
-const inputRequired = new Set(['observe','advance','research','store-observe','store-draft','brief','record']);
+const inputRequired = new Set(['lesson','observe','advance','research','store-observe','store-draft','brief','record']);
 const inputAllowed = new Set([...inputRequired,'handoff']);
 function inside(root, path) {
   const base = realpathSync(root);
@@ -75,7 +78,7 @@ export function buildInvocation(root, action, args = {}) {
     catch(e) { if(e.code!=='ENOENT') throw e; }
     const state=resolve(root,config.stateDir??'.agent-data');
     if (!args.brief||!args.screenshot) throw new Error('Approved brief and screenshot required');
-    argv.push('--brief',inside(resolve(state,'drafts'),args.brief),'--screenshot',inside(resolve(state,'assets'),args.screenshot));
+    argv.push('--brief',inside(appFolder(resolve(state,'drafts'),args.app),args.brief),'--screenshot',inside(appFolder(resolve(state,'assets'),args.app),args.screenshot));
   }
   if(inputRequired.has(action)&&args.inputJson===undefined) throw new Error('Evidence input required');
   const inputs=['inputJson','metricsJson','outcomesJson'].filter(k=>args[k]!==undefined);
@@ -86,17 +89,29 @@ export function buildInvocation(root, action, args = {}) {
     if(typeof value!=='string'||Buffer.byteLength(value)>750000) throw new Error('Evidence JSON too large or invalid');
     const parsed=JSON.parse(value);
     if(k==='outcomesJson'?!Array.isArray(parsed):(!parsed||typeof parsed!=='object'||Array.isArray(parsed))) throw new Error('Invalid evidence shape');
+    if(k==='inputJson'&&args.app!==undefined&&parsed.appId!==args.app)throw Error('Evidence appId must match --app');
+    if(k==='outcomesJson'&&(!args.app||parsed.some(row=>row?.appId!==args.app)))throw Error('Import outcomes one app at a time with explicit matching appId');
+    if(k==='metricsJson'&&args.app&&(Object.keys(parsed.byApp??{}).some(id=>id!==args.app)|| (parsed.apps??[]).some(a=>a.id!==args.app)))throw Error('Metrics contain a different app');
     stdin=JSON.stringify(parsed);
     argv.push('--'+k.replace('Json',''),'-');
   }
   return {argv,stdin};
+}
+export function scopedResult(action,args,data){
+  if(args.app)return data;
+  if(action==='scan')return data.map(s=>({app:s.app,capturedAt:s.capturedAt,storeStatus:s.store?.status,
+    liveVersion:s.store?.data?.live?.version,sourceStatus:s.source?.status,
+    complianceStatus:s.compliance?.status,priority:s.decision?.recommendation?.priority}));
+  if(action==='cycle')return {...data,apps:data.apps.map(({appId,appName,status,latestScan,created,updated,due,learning,feedback})=>
+    ({appId,appName,status,latestScan,created,updated,due,learning,reviewCount:feedback?.data?.count??null}))};
+  return data;
 }
 export async function runHostTool(root,action,args) {
   const {argv,stdin}=buildInvocation(root,action,args);
   return await new Promise((done,fail)=>{
     const child=execFile(process.execPath,argv,{cwd:root,timeout:600000,maxBuffer:24*1024*1024,windowsHide:true},(err,out)=>{
       if(err) return fail(new Error('Operator command failed; check local setup or run the exact command locally for diagnostics.'));
-      try {done(JSON.parse(out));} catch {fail(new Error('Invalid operator response'));}
+      try {done(scopedResult(action,args,JSON.parse(out)));} catch {fail(new Error('Invalid operator response'));}
     });
     child.stdin.on('error',()=>{});
     child.stdin.end(stdin);

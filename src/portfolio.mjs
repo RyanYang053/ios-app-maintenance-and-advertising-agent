@@ -61,10 +61,10 @@ export function portfolioPlan(db,config,now,appId) {
     const promotion=tasks.find(t=>t.kind==='promotion');
     const best=channels.filter(c=>c.attributionBasedNetPerHour!==null&&c.attributionBasedNetPerHour>0&&(p.maxCpa==null||c.cpa<=p.maxCpa))
       .sort((a,b)=>b.attributionBasedNetPerHour-a.attributionBasedNetPerHour)[0];
-    rows.push({appId:id,appName:scan.app.name,market,currency,fresh,cohort:cohort??null,channels,
+    rows.push({appId:id,appName:scan.app.name,market,currency,fresh,cohort:appId?(cohort??null):null,cohortAvailable:!!cohort,channels,
       urgentTaskIds:urgent.map(t=>t.id),promotionTaskId:promotion?.id??null,
       dueTaskIds:tasks.filter(t=>t.status==='live'&&t.dueAt<=now.slice(0,10)).map(t=>t.id),
-      research:relevant.filter(r=>r.kind!=='cohort').slice(0,10),
+      research:appId?relevant.filter(r=>r.kind!=='cohort').slice(0,10):[],researchCount:relevant.filter(r=>r.kind!=='cohort').length,
       priority:!fresh?0:urgent.length||tasks.some(t=>t.status==='live'&&t.dueAt<=now.slice(0,10))?1:best?2:3,
       next:!fresh?'refresh evidence':urgent.length?'resolve verified maintenance blocker':best?'consider qualified organic replication':'research or zero-cash exploration',
       rankingProxy:best?.attributionBasedNetPerHour??null,preferredChannel:best?.channel??null});

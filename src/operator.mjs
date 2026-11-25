@@ -29,6 +29,8 @@ function profile(config, appId) {
   const row = config.loop?.apps?.[appId] ?? {};
   const result = {
     channels: [...new Set(row.channels ?? [])],
+    shareAggregateLearning: row.shareAggregateLearning === true,
+    receiveAggregateLearning: row.receiveAggregateLearning === true,
     audienceGroup: row.audienceGroup ?? null, market: row.market ?? null,
     currency: row.currency ?? config.loop?.currency ?? 'CAD',
     hourlyRate: row.hourlyRate ?? config.loop?.hourlyRate ?? null,
@@ -45,7 +47,7 @@ function profile(config, appId) {
   return result;
 }
 
-function promotionLearning(appId, policy, items) {
+function promotionLearning(appId, policy, items, config) {
   // Include weak and unsuccessful complete observations in the cost denominator.
   const observations = items.filter((item) => item.kind === 'promotion' && item.status === 'closed' &&
     item.outcome?.learningEligible && item.publication?.mode === 'organic' && item.policy.currency === policy.currency &&
@@ -54,8 +56,8 @@ function promotionLearning(appId, policy, items) {
   const estimates = [];
   for (const channel of policy.channels) {
     const own = observations.filter((item) => item.appId === appId && item.channel === channel);
-    const peers = policy.audienceGroup && policy.market ? observations.filter((item) =>
-      item.appId !== appId && item.channel === channel && item.policy.audienceGroup === policy.audienceGroup) : [];
+    const peers = policy.receiveAggregateLearning && policy.audienceGroup && policy.market ? observations.filter((item) =>
+      item.appId !== appId && item.policy.shareAggregateLearning === true && config.loop?.apps?.[item.appId]?.shareAggregateLearning === true && item.channel === channel && item.policy.audienceGroup === policy.audienceGroup) : [];
     for (const [scope, pool] of [['same-app', own], ['matched-apps', peers]]) {
       const eligible = pool.filter((item) => item.outcome.totalCost !== null);
       const minimum = scope === 'same-app' ? 2 : 3;
@@ -226,7 +228,7 @@ export function cycle(db, scans, config, now) {
         { id: 'REGRESSION', criterion: 'Provide relevant existing test commands and results plus device or simulator evidence.' },
       ],
     });
-    const learning = promotionLearning(appId, policy, db.operations());
+    const learning = promotionLearning(appId, policy, db.operations(),config);
     const active = items.some((item) => item.kind === 'promotion' && !['closed', 'cancelled'].includes(item.status));
     if (stableLive(scan) && !active && policy.channels.length) {
       const channels = policy.channels.filter((channel) => !items.some((item) => item.kind === 'promotion' &&
@@ -265,7 +267,7 @@ export function cycle(db, scans, config, now) {
     results.push({ appId, appName: scan.app.name, status: stableLive(scan) ? 'operational' : 'maintenance or verification needed',
       latestScan: scan.capturedAt, recommendation: scan.decision.recommendation, feedback: scan.feedback, created, updated, due: waiting, learning });
   }
-  return { checkedAt: now, apps: results, queue: db.operations().filter((item) => !['closed', 'cancelled'].includes(item.status))
+  return { checkedAt: now, apps: results, queue: db.operations().filter((item) => scans.some(s=>s.app.id===item.appId) && !['closed', 'cancelled'].includes(item.status))
     .map(({ id, appId, kind, status, priority, dueAt }) => ({ id, appId, kind, status, priority, dueAt }))
     .sort((a, b) => a.priority - b.priority || a.id - b.id) };
 }
@@ -322,7 +324,7 @@ export function handoff(db, task, dir, now, input = {}) {
     scope: 'Start from the provided commit in a separate branch. Keep changes inside the approved app and report dependencies or scope changes before editing unrelated code.',
     delivery: 'Return the commit, optional pull request, version and build expected to ship, and PASS/FAIL/BLOCKED for each exact acceptance ID with actual evidence. The operator records reviewer verification and the loop checks Apple release status.',
   };
-  const output = join(dir, 'handoffs', String(task.id));
+  const output = join(dir, 'handoffs', task.appId, String(task.id));
   mkdirSync(output, { recursive: true, mode: 0o700 });
   const path = join(output, 'task.json');
   writeJson(path, packet);
@@ -405,6 +407,7 @@ function measurement(task, input, now) {
 }
 
 export function advance(db, task, input, scan, now) {
+  if(scan?.app?.id!==task.appId || (input.appId!==undefined&&input.appId!==task.appId))throw Error('Task, scan and evidence must belong to the same app');
   if (input.action === 'cancel' && !['closed', 'cancelled'].includes(task.status) && text(input.reason)) {
     return db.updateOperation(task, { status: 'cancelled', reason: input.reason }, 'cancelled', now);
   }
@@ -480,8 +483,8 @@ export function memory(db, config, appId) {
     const own = items.filter((item) => item.appId === id);
     return {
       appId: id, appName: scan.app.name,
-      promotionEvidence: promotionLearning(id, profile(config, id), items),
-      recentOutcomes: own.filter((item) => item.outcome).slice(0, 12).map(({ id, kind, channel, deployment, publication, outcome }) =>
+      promotionEvidence: promotionLearning(id, profile(config, id), items,config),
+      recentOutcomes: (appId?own:[]).filter((item) => item.outcome).slice(0, 12).map(({ id, kind, channel, deployment, publication, outcome }) =>
         ({ id, kind, channel, deployment, publication, outcome })),
       open: own.filter((item) => !['closed', 'cancelled'].includes(item.status))
         .map(({ id, kind, status, dueAt, priority }) => ({ id, kind, status, dueAt, priority })),
