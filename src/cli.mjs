@@ -7,7 +7,7 @@ import { attempt, readJson, writeJson } from './io.mjs';
 import { reportingPeriods, normalizeAnalytics, normalizeBrowserSales, summarizeAds, diagnose } from './growth.mjs';
 import { scanCompliance } from './compliance.mjs';
 import { state } from './state.mjs';
-import { advance, cycle, feedbackDigest, handoff, memory, observe } from './operator.mjs';
+import { advance, cycle, feedbackDigest, handoff, memory, observe, observeStore } from './operator.mjs';
 import { developerPreview, dispatchDevelopment } from './developer-queue.mjs';
 import { portfolioPlan, validateResearch } from './portfolio.mjs';
 import { dashboards, prepareBrief, prepareStoreDraft, renderVideo } from './creative.mjs';
@@ -16,6 +16,7 @@ const help = `Usage: npm run agent -- <action> [options]
 
   cycle [--app ID] [--cached] [--outcomes FILE] Run portfolio operations and reconcile release/impact evidence
   portfolio [--app ID]                         Prioritize portfolio with measured cohort economics and research
+  store-observe --app ID --input FILE          Queue proactive App Store maintenance from dated evidence
   research --app ID --input FILE               Record dated market or matured cohort evidence
   memory [--app ID]                            Read durable per-app and comparable channel evidence
   feedback --app ID                            Read recent App Store review evidence for feature discovery
@@ -108,7 +109,7 @@ function scan(config, args, dir, db, apple, withFeedback = false) {
 function main() {
   const { command, args } = parse(process.argv.slice(2));
   if (!command || args.help) return help;
-  if (!['portfolio', 'research', 'cycle', 'memory', 'feedback', 'observe', 'task', 'handoff', 'advance', 'dispatch-preview', 'dispatch', 'apps', 'scan', 'inspect', 'history', 'store-draft', 'brief', 'video', 'record', 'browser'].includes(command)) throw new Error('Unknown action');
+  if (!['portfolio', 'research', 'store-observe', 'cycle', 'memory', 'feedback', 'observe', 'task', 'handoff', 'advance', 'dispatch-preview', 'dispatch', 'apps', 'scan', 'inspect', 'history', 'store-draft', 'brief', 'video', 'record', 'browser'].includes(command)) throw new Error('Unknown action');
   if (command === 'browser') {
     if (!Object.hasOwn(dashboards, args.platform)) throw new Error('Unknown browser platform');
     return { url: dashboards[args.platform], instructions: 'Use a dedicated browser profile. Sign in manually and confirm account. Read or prepare drafts only unless the exact external action has separately been authorized.' };
@@ -188,6 +189,7 @@ function main() {
     }
     if (!args.input) throw new Error('Provide --input FILE');
     const input = commandInput(args.input);
+    if (command === 'store-observe') return observeStore(db,recent,input,new Date().toISOString()) ?? {status:'already exists'};
     if (command === 'research') return db.saveResearch(args.app,new Date().toISOString(),validateResearch(input,new Date().toISOString()));
     if (command === 'observe') {
       const result = observe(db, recent, input, new Date().toISOString());
