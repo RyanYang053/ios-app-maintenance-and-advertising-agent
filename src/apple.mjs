@@ -66,7 +66,7 @@ export function appleClient(config = {}) {
     },
     sales(id, periods) {
       const { previous, current } = periods;
-      const vendor = config.vendor ?? process.env.ASC_VENDOR_NUMBER;
+      const vendor = config.vendor ?? (config.explicitScope?undefined:process.env.ASC_VENDOR_NUMBER);
       if (!vendor) return { status: 'unavailable', reason: 'ASC vendor number is missing' };
       return attempt(() => {
         const response = asc(['analytics', 'compare', '--source', 'sales', '--vendor', String(vendor),
@@ -78,7 +78,7 @@ export function appleClient(config = {}) {
       });
     },
     ads(periods, ads = {}) {
-      const configuredAccounts = ads.accounts?.length ? ads.accounts : (process.env.ASC_ADS_AD_ACCOUNT_ID ? [process.env.ASC_ADS_AD_ACCOUNT_ID] : []);
+      const configuredAccounts = ads.accounts?.length ? ads.accounts : (!ads.explicitScope && process.env.ASC_ADS_AD_ACCOUNT_ID ? [process.env.ASC_ADS_AD_ACCOUNT_ID] : []);
       const accounts = [...new Set(configuredAccounts.map(String))];
       if (!accounts.length) return { status: 'unavailable', reason: 'Apple Ads account IDs are missing' };
       return attempt(() => accounts.map((account) => {
