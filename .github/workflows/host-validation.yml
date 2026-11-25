@@ -20,7 +20,7 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: node --test test/host-tools.test.mjs
       - run: node scripts/setup-local.mjs --skip-upstream
-      - run: node --test test/local-skill.test.mjs
+      - run: node --test test/local-skill.test.mjs test/readiness.test.mjs
       - if: runner.os == 'Windows'
         run: node --test test/portfolio.test.mjs
       - if: runner.os != 'Windows'
@@ -34,4 +34,5 @@ jobs:
           node-version: '22'
       - run: npm ci --ignore-scripts
       - run: node scripts/setup-local.mjs
+      - run: node scripts/operator.mjs doctor
       - run: node --input-type=module -e "import {skillCatalog} from './src/host-skills.mjs'; const rows=skillCatalog(process.cwd()); if(rows.length!==25 || rows.some(x=>!x.installed)) throw Error(JSON.stringify(rows)); console.log('All 25 skills present');"
