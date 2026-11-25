@@ -6,11 +6,11 @@ import { skillCatalog,readSkill,operatorGuide } from '../src/host-skills.mjs';
 import { readiness } from '../src/readiness.mjs';
 
 const root=resolve(import.meta.dirname,'..');
-function loadEvidence(file) {
+function loadEvidence(file,app) {
   if(file==='-') return readFileSync(0,'utf8');
   const configPath=resolve(root,'agent.config.json');
   const cfg=existsSync(configPath)?JSON.parse(readFileSync(configPath,'utf8')):{};
-  const base=realpathSync(resolve(root,cfg.stateDir??'.agent-data','imports'));
+  const base=realpathSync(resolve(root,cfg.stateDir??'.agent-data','imports',...(app?[app]:[])));
   const dest=realpathSync(resolve(base,file)),rel=relative(base,dest);
   if(!rel||rel==='..'||rel.startsWith('..'+sep)||isAbsolute(rel)) throw new Error('Evidence file must be in stateDir/imports');
   const info=statSync(dest);
@@ -42,9 +42,10 @@ async function main() {
     if(!/^\d+$/.test(args[k])) throw new Error('Invalid numeric option');
     args[k]=Number(args[k]);
   }
+  if(args.app!==undefined&&!/^\d+$/.test(args.app))throw Error('Exact App Store ID required');
   const keys=['input','metrics','outcomes'].filter(k=>args[k]!==undefined);
   if(keys.length>1) throw new Error('Import one evidence payload per call');
-  for(const k of keys){args[k+'Json']=loadEvidence(args[k]);delete args[k];}
+  for(const k of keys){args[k+'Json']=loadEvidence(args[k],args.app);delete args[k];}
   return runHostTool(root,action,args);
 }
 try{console.log(JSON.stringify(await main(),null,2));}
