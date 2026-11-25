@@ -10,7 +10,7 @@ export function skillCatalog(root) {
 }
 export function readSkill(root,name,file='SKILL.md') {
   const row=inventory(root).find(r=>r.name===name);
-  if(!row) throw new Error('Unknown skill; call skill_catalog');
+  if(!row) throw new Error('Unknown skill; call skills');
   if(!/\.(md|txt|json|yaml|yml)$/i.test(file)||isAbsolute(file)) throw new Error('Only skill reference documents are allowed');
   const base=realpathSync(row.path), dest=realpathSync(resolve(base,file)), rel=relative(base,dest);
   if(!rel||rel==='..'||rel.startsWith('..'+sep)||isAbsolute(rel)) throw new Error('Reference escapes skill directory');
@@ -20,5 +20,5 @@ export function readSkill(root,name,file='SKILL.md') {
 }
 export function operatorGuide(root) {
   return {rules:readFileSync(resolve(root,'AGENTS.md'),'utf8'),workflow:readSkill(root,'ios-app-operator').text,
-    notice:'Use skill_catalog and read_skill to load task-relevant references. External actions require exact owner approval.'};
+    notice:'Use skills and skill --name to load task-relevant references. External actions require exact owner approval.'};
 }
