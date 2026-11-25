@@ -67,3 +67,22 @@ test('explicit per-app account routing fails closed on missing profile, wrong bu
  assert.deepEqual(verifiedInventory({apps:[{id:'123',bundleId:'com.a'},{id:'456',bundleId:'com.b'}]},a).apps,[{id:'123',bundleId:'com.a'}]);
  assert.throws(()=>accountScopes({appAccounts:{...cfg.appAccounts,'456':{ascProfile:'A',bundleId:'com.b'}}}));
 });
+
+import {appleClient} from '../src/apple.mjs';
+test('ASC health fetch uses read-only app/profile scope, linked build and strips private tester data',()=>{
+ const calls=[];
+ const apple=appleClient({profile:'AppA'},(cmd,args)=>{
+  calls.push(args);
+  assert.equal(cmd,'asc');assert.equal(args.at(-1),'AppA');
+  if(args[0]==='testflight')return {data:[{id:'receipt',attributes:{osVersion:'27',signature:'sig',email:'private@example.com',comment:'private text'}}]};
+  if(args[0]==='builds')return {data:[{id:'build-a',attributes:{version:'12'}}]};
+  if(args[0]==='performance'){assert.ok(args.includes('build-a'));return {data:[{id:'diag',attributes:{diagnosticType:'HANGS',weight:2}}]};}
+  throw Error('Unexpected command');
+ });
+ const health=apple.health('123');
+ assert.equal(health.crashes.data.sampleCount,1);
+ assert.equal(health.diagnostics.data.buildId,'build-a');
+ assert.doesNotMatch(JSON.stringify(health),/private/);
+ assert.equal(calls.length,4);
+ assert.ok(calls.filter(a=>a[0]==='testflight').every(a=>a.includes('123')));
+});
