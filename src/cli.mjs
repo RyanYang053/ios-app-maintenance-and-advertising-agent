@@ -20,6 +20,7 @@ const help = `Usage: npm run agent -- <action> [options]
   cycle [--app ID] [--cached] [--outcomes FILE] Run portfolio operations and reconcile release/impact evidence
   keyword-plan --app ID                        Plan public keyword observations
   keyword-check --app ID --input FILE          Read one configured keyword/storefront
+  health-scan --app ID                         Fetch recent TestFlight and diagnostics, read-only
   health-record --app ID --input FILE          Record weekly health export and incident clusters
   forecast --app ID --input FILE               Freeze pre-action expected outcome
   learning-review --app ID                     Compare predictions and flag stale knowledge
@@ -120,7 +121,7 @@ function scan(config, args, dir, db, apple, withFeedback = false) {
 async function main() {
   const { command, args } = parse(process.argv.slice(2));
   if (!command || args.help) return help;
-  if (!['keyword-plan','keyword-check','health-record','forecast','learning-review','context', 'lesson', 'portfolio', 'research', 'store-observe', 'cycle', 'memory', 'feedback', 'observe', 'task', 'handoff', 'advance', 'dispatch-preview', 'dispatch', 'apps', 'scan', 'inspect', 'history', 'store-draft', 'brief', 'video', 'record', 'browser'].includes(command)) throw new Error('Unknown action');
+  if (!['health-scan','keyword-plan','keyword-check','health-record','forecast','learning-review','context', 'lesson', 'portfolio', 'research', 'store-observe', 'cycle', 'memory', 'feedback', 'observe', 'task', 'handoff', 'advance', 'dispatch-preview', 'dispatch', 'apps', 'scan', 'inspect', 'history', 'store-draft', 'brief', 'video', 'record', 'browser'].includes(command)) throw new Error('Unknown action');
   if (command === 'browser') {
     if (!Object.hasOwn(dashboards, args.platform)) throw new Error('Unknown browser platform');
     return { url: dashboards[args.platform], instructions: 'Use a dedicated browser profile. Sign in manually and confirm account. Read or prepare drafts only unless the exact external action has separately been authorized.' };
@@ -183,6 +184,11 @@ async function main() {
     }
     if(command==='context')return {...appContext(db,appId(args.app)),operationsLearning:learningReview(db,args.app,new Date().toISOString())};
     if(command==='keyword-plan')return keywordPlan(db,appId(args.app),config,new Date().toISOString());
+    if(command==='health-scan'){
+      const inventory=verifiedInventory(loadApps(apple,{}),scope);if(!inventory.apps.some(a=>a.id===args.app))throw Error('App is not present in authorized inventory');
+      const report=apple.health(appId(args.app)),now=new Date().toISOString();
+      return db.saveOpsEvidence(args.app,'health-scan',now,{...report,observedAt:now});
+    }
     if(command==='learning-review')return learningReview(db,appId(args.app),new Date().toISOString());
     if (command === 'portfolio') return portfolioPlan(db,config,new Date().toISOString(),args.app);
     if (command === 'memory') return memory(db, config, args.app);
