@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash",
+      "Edit",
+      "Write",
+      "NotebookEdit",
+      "Agent"
+    ],
+    "ask": [
+      "mcp__ios-operator__advance",
+      "mcp__ios-operator__record",
+      "mcp__ios-operator__handoff"
+    ]
+  }
+}
