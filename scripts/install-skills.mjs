@@ -1,10 +1,22 @@
-import { existsSync, mkdirSync, lstatSync, readlinkSync, symlinkSync } from 'node:fs';
+import { existsSync, mkdirSync, lstatSync, realpathSync, symlinkSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { readJson, run } from '../src/io.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 const repos = readJson(join(root, 'upstream.json'));
-const target = join(root, '.agents', 'skills');
+const targets = [join(root,'.agents','skills'),join(root,'.claude','skills')];
+for(const target of targets) mkdirSync(target,{recursive:true});
+function linkSkill(source,target,name) {
+  const link=join(target,name);
+  let existing;
+  try {existing=lstatSync(link);} catch(e) {if(e.code!=='ENOENT') throw e;}
+  if(existing) {
+    if(realpathSync(link)!==realpathSync(source)) throw new Error('Skill path already used: '+link);
+    return;
+  }
+  symlinkSync(process.platform==='win32'?resolve(source):relative(target,source),link,process.platform==='win32'?'junction':'dir');
+}
+linkSkill(join(targets[0],'ios-app-operator'),targets[1],'ios-app-operator');
 const checkouts = join(root, '.agent-data', 'upstream');
 mkdirSync(checkouts, { recursive: true, mode: 0o700 });
 
@@ -30,12 +42,7 @@ for (const item of repos.filter((item) => item.checkout)) {
     const source = join(dir, path);
     if (!existsSync(join(source, 'SKILL.md'))) throw new Error('Missing pinned skill: ' + path);
     // Skill docs are loaded by path with their upstream references intact.
-    const link = join(target, name);
-    const linkPath = relative(target, source);
-    let existing;
-    try { existing = lstatSync(link); } catch (error) { if (error.code !== 'ENOENT') throw error; }
-    if (existing && (!existing.isSymbolicLink() || readlinkSync(link) !== linkPath)) throw new Error('Skill path already used: ' + link);
-    if (!existing) symlinkSync(linkPath, link, 'junction');
+    for(const target of targets) linkSkill(source,target,name);
   }
   console.log(item.checkout + ' @ ' + item.revision.slice(0, 12));
 }
