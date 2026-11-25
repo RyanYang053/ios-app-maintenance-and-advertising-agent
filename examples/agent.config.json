@@ -42,7 +42,13 @@
           "assignee": "development-agent"
         },
         "shareAggregateLearning": false,
-        "receiveAggregateLearning": false
+        "receiveAggregateLearning": false,
+        "aso": {
+          "keywords": [],
+          "storefronts": [
+            "CA"
+          ]
+        }
       }
     },
     "portfolioHoursPerCycle": 4,
