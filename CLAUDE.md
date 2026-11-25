@@ -1,3 +1,3 @@
 @AGENTS.md
 
-Use the ios-operator MCP server for all operations. Load .agents/skills/ios-app-operator/SKILL.md (also installed under .claude/skills by the installer). Do not use a general shell or editor to bypass the operator tool boundary. For public actions and developer dispatch, show the exact preview and wait for owner approval; dispatch is intentionally not exposed by MCP. Report any missing tool, permission or data instead of inventing results.
+Use the local ios-app-operator skill via /ios-app-operator or its SKILL.md in .claude/skills. Execute only the bounded local runner `node scripts/operator.mjs` for operations. The owner installs dependencies and authenticates separately. Ask for exact approval before external writes, paid campaigns, and dispatch. Never modify app source or run a separate coding agent under this operator's credentials. No MCP setup is required.
