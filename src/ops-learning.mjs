@@ -80,7 +80,7 @@ export function recordHealth(db,id,input,now){
     if(k==='rating'&&prior.metrics.ratingCount>=20&&p-v>=.2-1e-9)alerts.push({metric:k,before:p,after:v});
   }
   const clusters=new Map();
-  for(const i of incidents){const key=norm(i.signature)+'|'+i.os;const old=clusters.get(key);clusters.set(key,{signature:i.signature,os:i.os,occurrences:(old?.occurrences??0)+i.occurrences,evidence:[...new Set([...(old?.evidence??[]),i.evidence])]});}
+  for(const i of incidents){const key=norm(i.signature)+'|'+i.os;const old=clusters.get(key);if(old?.evidence.includes(i.evidence))continue;clusters.set(key,{signature:i.signature,os:i.os,occurrences:(old?.occurrences??0)+i.occurrences,evidence:[...new Set([...(old?.evidence??[]),i.evidence])]});}
   const row={appId:id,start,end,source,scope,currency:input.currency??null,metrics,alerts,clusters:[...clusters.values()].sort((a,b)=>b.occurrences-a.occurrences).slice(0,10),
     notice:'Read-only health triage. Confirm incident evidence and create separately approved development task.'};
   return db.saveOpsEvidence(id,'health',JSON.stringify([source,scope,input.currency??null,end]),row);
