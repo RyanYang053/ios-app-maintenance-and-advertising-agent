@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { actions,buildInvocation } from '../src/host-tools.mjs';
@@ -26,7 +26,7 @@ test('video input stays in approved folders, including symlink escape',t=>{
   writeFileSync(join(root,'.agent-data','assets','screen.png'),'x');
   writeFileSync(join(root,'secret'),'private');
   const args={brief:'brief.json',screenshot:'screen.png'};
-  assert.ok(buildInvocation(root,'video',args).argv.includes(join(root,'.agent-data','assets','screen.png')));
+  assert.ok(buildInvocation(root,'video',args).argv.includes(realpathSync(join(root,'.agent-data','assets','screen.png'))));
   assert.throws(()=>buildInvocation(root,'video',{...args,screenshot:'../../secret'}));
   if(process.platform!=='win32') {
     symlinkSync(join(root,'secret'),join(root,'.agent-data','assets','escape'));
