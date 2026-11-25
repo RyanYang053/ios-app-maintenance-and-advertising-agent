@@ -22,7 +22,7 @@ jobs:
       - run: node scripts/setup-local.mjs --skip-upstream
       - run: node --test test/local-skill.test.mjs test/readiness.test.mjs
       - if: runner.os == 'Windows'
-        run: node --test test/portfolio.test.mjs test/app-isolation.test.mjs
+        run: node --test test/portfolio.test.mjs test/app-isolation.test.mjs test/ops-learning.test.mjs
       - if: runner.os != 'Windows'
         run: npm test
   verify-upstream:
