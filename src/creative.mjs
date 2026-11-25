@@ -25,8 +25,8 @@ function storeLink(value, id, required = false) {
 export function prepareBrief(scan, options, dir) {
   if (scan.source.status !== 'matched') throw new Error('Confirm the GitHub repo/folder/ref and scan again before creating App claims');
   if (!scan.store.data?.live) throw new Error('A verified live iOS version is required for this public promotion brief');
-  if (options.listingSha !== scan.source.release?.sha && options.listingSha !== scan.source.development?.sha) {
-    throw new Error('Confirm listingSha against a scanned source commit');
+  if (scan.source.releaseStatus !== 'tag-match' || !scan.source.release?.sha || options.listingSha !== scan.source.release.sha) {
+    throw new Error('Promotion claims require the matched live release tag; development HEAD is not shipped evidence. Resolve release provenance first.');
   }
   const liveVersion = scan.store.data.live.version;
   const requiredText = ['audience', 'hook', 'proof', 'cta'];

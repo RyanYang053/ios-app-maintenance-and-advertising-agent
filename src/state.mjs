@@ -34,6 +34,11 @@ export function state(dir) {
       ON operations(app_id, json_extract(payload, '$.kind'), coalesce(json_extract(payload, '$.storeVersionId'), ''))
       WHERE json_extract(payload, '$.kind') IN ('store-maintenance', 'review-triage')
         AND json_extract(payload, '$.status') NOT IN ('closed', 'cancelled');
+    CREATE TABLE IF NOT EXISTS research (
+      id INTEGER PRIMARY KEY, app_id TEXT NOT NULL, captured_at TEXT NOT NULL, payload TEXT NOT NULL,
+      UNIQUE(app_id, payload)
+    );
+    CREATE INDEX IF NOT EXISTS research_by_app ON research(app_id, id DESC);
     CREATE INDEX IF NOT EXISTS events_by_op ON operation_events (operation_id, id);
 
   `);
@@ -54,6 +59,13 @@ export function state(dir) {
     }
   }
   return {
+    saveResearch(app,time,payload) {
+      const result=db.prepare('INSERT INTO research(app_id,captured_at,payload) VALUES(?,?,?) ON CONFLICT DO NOTHING').run(app,time,JSON.stringify(payload));
+      return {stored:result.changes===1};
+    },
+    research(app) {
+      return db.prepare('SELECT payload FROM research WHERE app_id=? ORDER BY json_extract(payload, \'$.observedOn\') DESC,id DESC LIMIT 200').all(app).map(r=>JSON.parse(r.payload));
+    },
     saveScan(app, time, payload) { db.prepare('INSERT INTO scans(app_id, captured_at, payload) VALUES (?, ?, ?)').run(app, time, JSON.stringify(payload)); },
     saveExperiment(app, time, payload) { return db.prepare('INSERT INTO experiments(app_id, captured_at, payload) VALUES (?, ?, ?)').run(app, time, JSON.stringify(payload)).lastInsertRowid; },
     latest(app) {

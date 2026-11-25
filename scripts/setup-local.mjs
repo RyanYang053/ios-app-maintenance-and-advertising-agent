@@ -1,0 +1,16 @@
+import { existsSync,copyFileSync,mkdirSync,readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { resolve } from 'node:path';
+const root=resolve(import.meta.dirname,'..');
+const [major,minor]=process.versions.node.split('.').map(Number);
+if(major<22||(major===22&&minor<13)) throw new Error('Node.js 22.13+ required');
+const config=resolve(root,'agent.config.json');
+if(!existsSync(config)) copyFileSync(resolve(root,'examples/agent.config.json'),config);
+const cfg=JSON.parse(readFileSync(config,'utf8'));
+for(const dir of ['imports','assets','drafts']) mkdirSync(resolve(root,cfg.stateDir??'.agent-data',dir),{recursive:true,mode:0o700});
+const args=process.argv.slice(2);
+if(args.some(x=>!['--with-compliance','--skip-upstream'].includes(x))) throw new Error('Unknown setup option');
+const run=(cmd,argv)=>{const r=spawnSync(cmd,argv,{cwd:root,stdio:'inherit',shell:false});if(r.error||r.status!==0)throw new Error('Setup step failed: '+cmd);};
+if(args.includes('--skip-upstream')) run(process.execPath,['scripts/install-skills.mjs','--local-only']);
+else run(process.execPath,['scripts/install-skills.mjs',...args]);
+console.log('Local skills ready. Authenticate Apple manually, then run node scripts/operator.mjs guide and apps. Existing configuration was preserved.');

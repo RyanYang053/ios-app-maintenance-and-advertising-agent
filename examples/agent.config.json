@@ -42,6 +42,8 @@
           "assignee": "development-agent"
         }
       }
-    }
+    },
+    "portfolioHoursPerCycle": 4,
+    "portfolioMaintenanceReserveHours": 1
   }
 }

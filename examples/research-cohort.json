@@ -1,0 +1,21 @@
+{
+  "kind": "cohort",
+  "observedOn": "2026-11-24",
+  "market": "CA",
+  "source": "EXAMPLE ONLY — replace with actual install cohort export",
+  "evidence": "EXAMPLE report reference",
+  "finding": "Illustrative 30-day cohort",
+  "implication": "Replace every value with observed report data before import",
+  "cohort": {
+    "start": "2026-09-01",
+    "end": "2026-09-30",
+    "horizonDays": 30,
+    "installs": 200,
+    "payers": 30,
+    "netDeveloperProceeds": 500,
+    "variableCost": 100,
+    "currency": "CAD",
+    "scope": "CA acquisition cohort",
+    "complete": true
+  }
+}

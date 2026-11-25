@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "defaultMode": "default",
+    "deny": [
+      "Edit",
+      "NotebookEdit",
+      "Agent",
+      "Bash(node src/cli.mjs *)",
+      "Bash(npm run agent *)",
+      "Bash(gh issue create *)",
+      "Bash(git push *)"
+    ],
+    "ask": [
+      "Bash(node scripts/operator.mjs *)"
+    ]
+  }
+}

@@ -21,7 +21,7 @@ npm run agent -- task --task 1
 
 `cycle` 可由本地定时器定期运行。按 App 扫描可加 `--app`。有已授权的数据但 API 无法访问时，沿用 `--metrics` 输入。测试和排查可用 `--cached`，超过 72 小时的快照会要求重新采集。每个配置指定一个 Apple API 授权范围。不同开发者团队可以单独配置 ASC profile 和数据库目录。
 
-`ios-business-operator` 是 OpenCode 入口。运营角色禁用编辑、任意终端和调用子 Agent，通过 `portfolio` 工具运行有限的运营命令。该工具使用启动目录的受信 `agent.config.json`。视频的截图来自 `stateDir/assets`，简报来自 `stateDir/drafts`。跨宿主运行相同 CLI 时，运行账号也应仅有 App 仓库读取权限，开发 Agent 使用独立工作区和凭据。无人值守的 CLI 轮次自动观测、选动作、排队并核对证据。模型推导具体功能方案需要运行 Agent 宿主。账号确认、发帖、App Store 写操作和广告购买沿用项目审批规则。
+Claude Code 和 ChatGPT Desktop 本地 Codex 使用同一受限本地 runner：node scripts/operator.mjs。runner 不提供任意命令或直接派发 issue；owner 在独立终端执行已批准的 dispatch。参见 [双宿主指南](hosts.md)。该工具使用启动目录的受信 `agent.config.json`。视频的截图来自 `stateDir/assets`，简报来自 `stateDir/drafts`。跨宿主运行相同 CLI 时，运行账号也应仅有 App 仓库读取权限，开发 Agent 使用独立工作区和凭据。无人值守的 CLI 轮次自动观测、选动作、排队并核对证据。模型推导具体功能方案需要运行 Agent 宿主。账号确认、发帖、App Store 写操作和广告购买沿用项目审批规则。
 
 ## 学什么
 
@@ -77,3 +77,9 @@ npm run agent -- dispatch --task 2 --input /path/to/approved-issue.json
 ```
 
 批准 JSON 包含从预览得到的 `fingerprint` 和 `approvalReference`。先确认外部可见性、收件账号，以及标题、正文或证据引用里是否含内部信息。创建成功会保存 Issue URL 和分派事件。如果结果不明确，检查仓库后用 `recoverIssue` 填写找到的原 Issue URL，系统会核对标识与接单人。外部 Agent 回传实际代码 commit 和验收结果，运营继续跟进 App Store 状态。
+
+## Portfolio economics and market memory
+
+`node scripts/operator.mjs research --app 1234567890 --input research.json` records a sanitized observation from the imports directory. Types: competitor, customer, channel, cohort. Each includes market, observedOn, source, evidence, finding, implication; public competitor/channel observations require an HTTPS URL. Cohort requires an actual complete matured install-cohort report; see examples/research-cohort.json. Deduplicated records persist across sessions, and the planner uses recent matching evidence (90 days). `node scripts/operator.mjs portfolio` is also returned by cycle. It flags unconfigured apps, urgent tasks, due measurement and qualified campaign economics. The proxy is cohort contribution per install times attributed downloads minus actual cash and priced labor; it is not causal incremental profit. Compare only matching currencies and markets. Optional portfolioHoursPerCycle and portfolioMaintenanceReserveHours produce a bounded organic allocation suggestion based on measured effort, matching queued tasks and positive proxy. When blockers/due measurements, missing evidence, cross-currency ambiguity or a mismatching queue prevent allocation, report the gap; do not automatically spend or fabricate effort. Both local hosts must run the Skill to conduct actual research, generate creatives, and execute approved browser actions. A scheduled CLI cycle alone only observes and queues; it is not a continuously reasoning Agent.
+
+主动维护（不必等拒审）：`store-observe --app ID --input store-observation.json` 接收线上或候选 versionId、locale、field、before、after、observedOn、evidence、problem、proposedChange。支持商店文案、截图、预览、年龄评级、定价、订阅、隐私、可用性和评论回复等明确的管理任务。只允许近期证据、同一版本且无未关闭的维护任务。经实际批准及操作后，重新扫描，再用 store-resolved 提交同一字段、语言区及精确前后值。实际界面可编辑性和账户权限仍以 Apple 为准；记录操作不代替操作本身。

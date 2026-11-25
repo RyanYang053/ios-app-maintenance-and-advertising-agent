@@ -6,3 +6,7 @@
 node_modules/
 .agents/skills/*
 !.agents/skills/ios-app-operator/
+
+.claude/skills/
+.claude/settings.local.json
+*.p12
