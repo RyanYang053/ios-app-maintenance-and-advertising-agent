@@ -7,10 +7,13 @@
   },
   "scripts": {
     "start": "node server.mjs",
-    "test": "node --test ../../test/host-tools.test.mjs"
+    "test": "node --test smoke.test.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/server": "2.4.0",
     "zod": "4.1.12"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "2.4.0"
   }
 }
