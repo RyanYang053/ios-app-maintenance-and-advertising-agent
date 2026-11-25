@@ -21,7 +21,7 @@ npm run agent -- task --task 1
 
 `cycle` 可由本地定时器定期运行。按 App 扫描可加 `--app`。有已授权的数据但 API 无法访问时，沿用 `--metrics` 输入。测试和排查可用 `--cached`，超过 72 小时的快照会要求重新采集。每个配置指定一个 Apple API 授权范围。不同开发者团队可以单独配置 ASC profile 和数据库目录。
 
-Claude Code 和 ChatGPT 使用同一 ios-operator MCP 入口。MCP 不提供任意终端、编辑、子 Agent 或直接派发 issue 的能力；owner 在独立终端执行已批准的 dispatch。参见 [双宿主指南](hosts.md)。该工具使用启动目录的受信 `agent.config.json`。视频的截图来自 `stateDir/assets`，简报来自 `stateDir/drafts`。跨宿主运行相同 CLI 时，运行账号也应仅有 App 仓库读取权限，开发 Agent 使用独立工作区和凭据。无人值守的 CLI 轮次自动观测、选动作、排队并核对证据。模型推导具体功能方案需要运行 Agent 宿主。账号确认、发帖、App Store 写操作和广告购买沿用项目审批规则。
+Claude Code 和 ChatGPT Desktop 本地 Codex 使用同一受限本地 runner：node scripts/operator.mjs。runner 不提供任意命令或直接派发 issue；owner 在独立终端执行已批准的 dispatch。参见 [双宿主指南](hosts.md)。该工具使用启动目录的受信 `agent.config.json`。视频的截图来自 `stateDir/assets`，简报来自 `stateDir/drafts`。跨宿主运行相同 CLI 时，运行账号也应仅有 App 仓库读取权限，开发 Agent 使用独立工作区和凭据。无人值守的 CLI 轮次自动观测、选动作、排队并核对证据。模型推导具体功能方案需要运行 Agent 宿主。账号确认、发帖、App Store 写操作和广告购买沿用项目审批规则。
 
 ## 学什么
 
