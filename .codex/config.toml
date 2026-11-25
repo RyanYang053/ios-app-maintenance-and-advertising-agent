@@ -1,6 +1,0 @@
-# Trusted local project only. Install the adapter first.
-[mcp_servers.ios_operator]
-command = "node"
-args = ["adapters/mcp/server.mjs"]
-startup_timeout_sec = 30
-tool_timeout_sec = 620
