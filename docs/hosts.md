@@ -9,6 +9,7 @@ npm ci
 npm install --prefix adapters/mcp --ignore-scripts
 node scripts/install-skills.mjs
 npm test
+npm test --prefix adapters/mcp
 ```
 
 Copy examples/agent.config.json only if no configuration exists. Authenticate ASC and GitHub manually as described in the main README. The adapter pins its direct dependencies; commit a generated adapter lockfile after installation and review. Use Node 22.13+.
@@ -23,6 +24,6 @@ For a trusted local Codex project open this exact checkout, approve the project 
 
 ## Safety and parity
 
-Both hosts expose the same 17 operations. The external GitHub issue write is intentionally NOT exposed as MCP: show dispatch-preview, then the owner approves and runs the exact dispatch command from a separate trusted terminal with issue-only credentials. External Apple edits, public social posts and paid ads also need exact approval and receipts; draft tools do not execute them. Project prompt instructions are not a substitute for OS-level access isolation. Use read-only source credentials, separate profiles, and never bypass the host sandbox. The operator must not write app code.
+Both hosts expose the same 17 operations plus operator_guide, skill_catalog and read_skill. Start each session with operator_guide; use skill_catalog and read_skill to load relevant pinned skills even if the ChatGPT host has no local skill loader. The external GitHub issue write is intentionally NOT exposed as MCP: show dispatch-preview, then the owner approves and runs the exact dispatch command from a separate trusted terminal with issue-only credentials. External Apple edits, public social posts and paid ads also need exact approval and receipts; draft tools do not execute them. Project prompt instructions are not a substitute for OS-level access isolation. Use read-only source credentials, separate profiles, and never bypass the host sandbox. The operator must not write app code.
 
 Smoke test each host: list tools; memory; cached cycle (or explicit no-data error); scan one approved app; task; dispatch_preview; verify the same task ID in the other host. Test invalid app IDs and reject arbitrary paths. Test actual Apple and social operations only in authorized accounts. MCP Inspector can exercise the stdio protocol with the absolute node path to this adapter. These checks are required before calling a host production-ready.
