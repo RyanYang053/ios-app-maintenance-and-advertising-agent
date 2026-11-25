@@ -1,12 +1,5 @@
 [
   {
-    "name": "MCP TypeScript SDK",
-    "url": "https://github.com/modelcontextprotocol/typescript-sdk",
-    "license": "MIT",
-    "version": "2.4.0",
-    "integration": "adapters/mcp"
-  },
-  {
     "name": "App Store Connect CLI",
     "url": "https://github.com/rorkai/App-Store-Connect-CLI",
     "license": "MIT",
@@ -73,12 +66,6 @@
     "url": "https://github.com/remotion-dev/skills",
     "license": "Remotion License for the rendering engine",
     "integration": "optional reference"
-  },
-  {
-    "name": "Chrome DevTools MCP",
-    "url": "https://github.com/ChromeDevTools/chrome-devtools-mcp",
-    "license": "Apache-2.0",
-    "version": "1.14.0"
   },
   {
     "name": "Postiz",
