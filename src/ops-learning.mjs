@@ -37,7 +37,53 @@ export function keywordPlan(db,id,config,now){
     if(elapsed>=1&&(daily||weekdayFor(keyword,country)===new Date(today).getUTCDay()||elapsed>=7))
       rows.push({keyword,country,reason:daily?'daily':'weekly',ageDays:Number.isFinite(elapsed)?elapsed:null});
   }
-  return {appId:id,source:'itunes-search',notice:'Public iTunes Search API ordering, NOT native App Store rank. Do not compare across sources.',due:rows,history:hist.slice(0,50)};
+  return {appId:id,source:'itunes-search',notice:'Public iTunes Search API ordering, NOT native App Store rank. Do not compare across sources.',due:rows,history:hist.filter(r=>r.source==='itunes-search').slice(0,50),nativeHistory:hist.filter(r=>r.source==='native-store-observed').slice(0,50),competitorOverlap:competitorSummary(db,id)};
+}
+// Port of ASO Studio itunes.ts parseMzSearch (MIT, pinned provenance in docs).
+// No private endpoint or device impersonation is used; accept a verified export only.
+export function parseNativeSearch(json){
+  const bubbles=json?.pageData?.bubbles;
+  if(!Array.isArray(bubbles))return null;
+  const bubble=bubbles.find(b=>b?.name==='software');
+  if(!bubble)return {ids:[],lockups:new Map()};
+  if(!Array.isArray(bubble.results))return null;
+  const ids=bubble.results.map(r=>String(r?.id??'')).filter(id=>/^\d+$/.test(id));
+  if(ids.length!==bubble.results.length)return null;
+  const lockups=new Map();
+  for(const [id,l] of Object.entries(json?.storePlatformData?.['native-search-lockup']?.results??{})){
+    if(!l||typeof l!=='object')continue;
+    lockups.set(String(l.id??id),{name:String(l.name??'').slice(0,120),genre:String(l.genreNames?.[0]??'').slice(0,80)});
+  }
+  return {ids,lockups};
+}
+export function importNativeRank(db,id,config,input,now){
+  assertEvidenceApp(id,input);
+  const keyword=typeof input.keyword==='string'?input.keyword.trim().toLowerCase():'';
+  const country=input.country;
+  const policy=config.loop?.apps?.[id]?.aso??{};
+  if(!(policy.keywords??[]).some(k=>k.trim().toLowerCase()===keyword)||!(policy.storefronts??[]).includes(country)||
+    !stamp(input.observedOn)||input.observedOn>date(now)||!text(input.evidence)||input.complete!==true)
+    throw Error('Verified native storefront export, configured keyword and exact observation date required');
+  const parsed=parseNativeSearch(input.export);
+  if(!parsed||parsed.ids.length>300||new Set(parsed.ids).size!==parsed.ids.length)throw Error('Unexpected or duplicate native rank data');
+  const row={appId:id,source:'native-store-observed',observedOn:input.observedOn,keyword,country,status:'observed',
+    rank:parsed.ids.indexOf(id)+1||null,resultCount:parsed.ids.length,evidence:input.evidence,
+    competitors:parsed.ids.filter(x=>x!==id).slice(0,10).map(appId=>({appId,...parsed.lockups.get(appId)}))};
+  return db.saveOpsEvidence(id,'rank','native|'+country+'|'+keyword+'|'+row.observedOn,row);
+}
+export function competitorSummary(db,id){
+  const latest=new Map();
+  for(const row of db.opsEvidence(id,'rank')){
+    const key=JSON.stringify([row.source,row.country,row.keyword]);
+    if(!latest.has(key)||latest.get(key).observedOn<row.observedOn)latest.set(key,row);
+  }
+  const groups=new Map();
+  for(const row of latest.values())for(const rival of row.competitors??[]){
+    const key=JSON.stringify([row.source,row.country,rival.appId]);
+    const current=groups.get(key)??{source:row.source,country:row.country,appId:rival.appId,name:rival.name??null,keywords:[],observedDates:[]};
+    current.keywords.push(row.keyword);current.observedDates.push(row.observedOn);groups.set(key,current);
+  }
+  return [...groups.values()].sort((a,b)=>b.keywords.length-a.keywords.length).slice(0,50);
 }
 export async function checkKeyword(db,id,config,input,now,fetcher=fetch){
   assertEvidenceApp(id,input);
