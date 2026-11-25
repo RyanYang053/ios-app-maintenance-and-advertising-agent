@@ -47,7 +47,7 @@ function profile(config, appId) {
   return result;
 }
 
-function promotionLearning(appId, policy, items) {
+function promotionLearning(appId, policy, items, config) {
   // Include weak and unsuccessful complete observations in the cost denominator.
   const observations = items.filter((item) => item.kind === 'promotion' && item.status === 'closed' &&
     item.outcome?.learningEligible && item.publication?.mode === 'organic' && item.policy.currency === policy.currency &&
@@ -57,7 +57,7 @@ function promotionLearning(appId, policy, items) {
   for (const channel of policy.channels) {
     const own = observations.filter((item) => item.appId === appId && item.channel === channel);
     const peers = policy.receiveAggregateLearning && policy.audienceGroup && policy.market ? observations.filter((item) =>
-      item.appId !== appId && item.policy.shareAggregateLearning === true && item.channel === channel && item.policy.audienceGroup === policy.audienceGroup) : [];
+      item.appId !== appId && item.policy.shareAggregateLearning === true && config.loop?.apps?.[item.appId]?.shareAggregateLearning === true && item.channel === channel && item.policy.audienceGroup === policy.audienceGroup) : [];
     for (const [scope, pool] of [['same-app', own], ['matched-apps', peers]]) {
       const eligible = pool.filter((item) => item.outcome.totalCost !== null);
       const minimum = scope === 'same-app' ? 2 : 3;
@@ -228,7 +228,7 @@ export function cycle(db, scans, config, now) {
         { id: 'REGRESSION', criterion: 'Provide relevant existing test commands and results plus device or simulator evidence.' },
       ],
     });
-    const learning = promotionLearning(appId, policy, db.operations());
+    const learning = promotionLearning(appId, policy, db.operations(),config);
     const active = items.some((item) => item.kind === 'promotion' && !['closed', 'cancelled'].includes(item.status));
     if (stableLive(scan) && !active && policy.channels.length) {
       const channels = policy.channels.filter((channel) => !items.some((item) => item.kind === 'promotion' &&
@@ -407,6 +407,7 @@ function measurement(task, input, now) {
 }
 
 export function advance(db, task, input, scan, now) {
+  if(scan?.app?.id!==task.appId || (input.appId!==undefined&&input.appId!==task.appId))throw Error('Task, scan and evidence must belong to the same app');
   if (input.action === 'cancel' && !['closed', 'cancelled'].includes(task.status) && text(input.reason)) {
     return db.updateOperation(task, { status: 'cancelled', reason: input.reason }, 'cancelled', now);
   }
@@ -482,7 +483,7 @@ export function memory(db, config, appId) {
     const own = items.filter((item) => item.appId === id);
     return {
       appId: id, appName: scan.app.name,
-      promotionEvidence: promotionLearning(id, profile(config, id), items),
+      promotionEvidence: promotionLearning(id, profile(config, id), items,config),
       recentOutcomes: (appId?own:[]).filter((item) => item.outcome).slice(0, 12).map(({ id, kind, channel, deployment, publication, outcome }) =>
         ({ id, kind, channel, deployment, publication, outcome })),
       open: own.filter((item) => !['closed', 'cancelled'].includes(item.status))
