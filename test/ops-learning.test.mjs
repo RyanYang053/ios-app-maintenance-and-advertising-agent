@@ -54,3 +54,16 @@ test('weekly health alerts, incident dedup and forecast error use only matched a
  assert.equal(learningReview(db,'456',now).forecasts.length,0);
  assert.throws(()=>buildInvocation('/tmp','forecast',{app:'456',inputJson:JSON.stringify(payload)}));
 });
+
+import {accountScopes,appAccount,verifiedInventory} from '../src/account-scope.mjs';
+test('explicit per-app account routing fails closed on missing profile, wrong bundle and duplicate profile',()=>{
+ const cfg={appAccounts:{'123':{ascProfile:'A',bundleId:'com.a',vendor:'12'},'456':{ascProfile:'B',bundleId:'com.b'}}};
+ assert.deepEqual(accountScopes(cfg),['123','456']);
+ const a=appAccount(cfg,'123');
+ assert.equal(a.asc.profile,'A');assert.equal(a.asc.explicitScope,true);
+ assert.equal(appAccount(cfg,'456').asc.vendor,undefined);
+ assert.throws(()=>appAccount(cfg,'789'),/No explicit/);
+ assert.throws(()=>verifiedInventory({apps:[{id:'123',bundleId:'com.b'}]},a),/bundle ID/);
+ assert.deepEqual(verifiedInventory({apps:[{id:'123',bundleId:'com.a'},{id:'456',bundleId:'com.b'}]},a).apps,[{id:'123',bundleId:'com.a'}]);
+ assert.throws(()=>accountScopes({appAccounts:{...cfg.appAccounts,'456':{ascProfile:'A',bundleId:'com.b'}}}));
+});
