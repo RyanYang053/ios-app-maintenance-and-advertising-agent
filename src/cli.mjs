@@ -11,7 +11,7 @@ import { state } from './state.mjs';
 import { advance, cycle, feedbackDigest, handoff, memory, observe, observeStore } from './operator.mjs';
 import { developerPreview, dispatchDevelopment } from './developer-queue.mjs';
 import { keywordPlan, checkKeyword, importNativeRank, recordHealth, forecast, learningReview } from './ops-learning.mjs';
-import { appContext, lesson, assertEvidenceApp, appId } from './app-context.mjs';
+import { appContext, lesson, retireLesson, assertEvidenceApp, appId } from './app-context.mjs';
 import { portfolioPlan, validateResearch } from './portfolio.mjs';
 import { renderScreenshot,planPpo,recordPpo } from './store-experiments.mjs';
 import { dashboards, prepareBrief, prepareStoreDraft, renderVideo } from './creative.mjs';
@@ -30,6 +30,7 @@ const help = `Usage: npm run agent -- <action> [options]
   forecast --app ID --input FILE               Freeze pre-action expected outcome
   learning-review --app ID                     Compare predictions and flag stale knowledge
   context --app ID                             Read isolated app knowledge, progress and skill revisions
+  lesson-retire --app ID --input FILE          Retire a specific lesson revision using same-app evidence
   lesson --app ID --input FILE                 Record a versioned lesson from this app's closed tasks
   portfolio [--app ID]                         Prioritize portfolio with measured cohort economics and research
   store-observe --app ID --input FILE          Queue proactive App Store maintenance from dated evidence
@@ -126,7 +127,7 @@ function scan(config, args, dir, db, apple, withFeedback = false) {
 async function main() {
   const { command, args } = parse(process.argv.slice(2));
   if (!command || args.help) return help;
-  if (!['screenshot','ppo-plan','ppo-result','rank-import','health-scan','keyword-plan','keyword-check','health-record','forecast','learning-review','context', 'lesson', 'portfolio', 'research', 'store-observe', 'cycle', 'memory', 'feedback', 'observe', 'task', 'handoff', 'advance', 'dispatch-preview', 'dispatch', 'apps', 'scan', 'inspect', 'history', 'store-draft', 'brief', 'video', 'record', 'browser'].includes(command)) throw new Error('Unknown action');
+  if (!['lesson-retire','screenshot','ppo-plan','ppo-result','rank-import','health-scan','keyword-plan','keyword-check','health-record','forecast','learning-review','context', 'lesson', 'portfolio', 'research', 'store-observe', 'cycle', 'memory', 'feedback', 'observe', 'task', 'handoff', 'advance', 'dispatch-preview', 'dispatch', 'apps', 'scan', 'inspect', 'history', 'store-draft', 'brief', 'video', 'record', 'browser'].includes(command)) throw new Error('Unknown action');
   if (command === 'browser') {
     if (!Object.hasOwn(dashboards, args.platform)) throw new Error('Unknown browser platform');
     return { url: dashboards[args.platform], instructions: 'Use a dedicated browser profile. Sign in manually and confirm account. Read or prepare drafts only unless the exact external action has separately been authorized.' };
@@ -240,6 +241,7 @@ async function main() {
     if(command==='keyword-check')return await checkKeyword(db,args.app,config,input,new Date().toISOString());
     if(command==='health-record')return recordHealth(db,args.app,input,new Date().toISOString());
     if(command==='forecast')return forecast(db,args.app,input,new Date().toISOString());
+    if(command==='lesson-retire')return retireLesson(db,args.app,input,new Date().toISOString());
     if(command==='lesson')return lesson(db,args.app,input,new Date().toISOString());
     if (command === 'store-observe') return observeStore(db,recent,input,new Date().toISOString()) ?? {status:'already exists'};
     if (command === 'research') return db.saveResearch(args.app,new Date().toISOString(),validateResearch(input,new Date().toISOString()));
