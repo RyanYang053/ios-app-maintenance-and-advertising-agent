@@ -1,0 +1,22 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { readiness } from '../src/readiness.mjs';
+test('doctor distinguishes missing configuration and real inventory from readiness',t=>{
+  const root=mkdtempSync(join(tmpdir(),'operator-doctor-'));
+  t.after(()=>rmSync(root,{recursive:true,force:true}));
+  const a=readiness(root,{probeCommand:()=>false});
+  assert.equal(a.productionVerified,false);
+  assert.equal(a.localPrerequisites,false);
+  assert.equal(a.checks.find(x=>x.name==='config').status,'BLOCKED');
+  for(const d of ['imports','assets','drafts'])mkdirSync(join(root,'.agent-data',d),{recursive:true});
+  writeFileSync(join(root,'agent.config.json'),JSON.stringify({github:{repos:[{repo:'OWNER/REPOSITORY'}]},loop:{apps:{'123':{market:'CA',channels:['youtube']}}}}));
+  const b=readiness(root,{live:true,probeCommand:()=>true,inventory:()=>[{id:'123'},{id:'456'}]});
+  assert.equal(b.checks.find(x=>x.name==='local-state').status,'PASS');
+  assert.equal(b.checks.find(x=>x.name==='source-config').status,'BLOCKED');
+  assert.equal(b.checks.find(x=>x.name==='apple-inventory').status,'PASS');
+  assert.match(b.checks.find(x=>x.name==='all-app-policies').detail,/456/);
+  assert.equal(b.productionVerified,false);
+});
