@@ -17,3 +17,6 @@ Before a queued feature/promotion, forecast records appId, taskId, metric (downl
 
 ## Remaining boundaries
 Native App Store rank, live TestFlight diagnostics import, full ASO Studio screenshot/PPO/In-App Event editor, and direct authorized Apple writes are not supplied by these ports. Existing store-draft, creative, approval and manual browser steps remain. Separate profiles and OS accounts are needed for actual credential security; app-scoped SQLite is logical isolation. Real Apple and social accounts and installed desktop sessions must be tested by the owner. CI uses fixtures and does not simulate a real successful campaign.
+
+## Optional explicit account routing
+Set top-level appAccounts to a map keyed by exact App Store ID, each with bundleId and a distinct ascProfile; optional vendor, adsProfile, adsAccounts. When nonempty, app actions require configured IDs, live scan/feedback verifies exact ID and bundle ID using its own named ASC profile. Browser inventory/store fallback and ambient report-account fallback are disabled in this mode. Run live scan/cycle per app and portfolio for summaries. This prevents accidental profile switching in the runner, not OS-level credential theft; the owner must create genuinely limited account keys, profiles and separate OS/browser sessions where required. Existing shared-profile configurations remain supported.
