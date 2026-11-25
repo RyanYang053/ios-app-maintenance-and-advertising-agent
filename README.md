@@ -21,7 +21,7 @@ npm run agent -- memory
 npm run agent -- task --task 1
 ```
 
-在 OpenCode 中选择 `ios-business-operator` 运行完整运营工作流。开发交付和独立验收分别使用 `ios-feature-builder` 与 `ios-acceptance-reviewer`，也可以把任务 JSON 交给你选的开发 Agent。配置、状态和输入样例见 [持续运营手册](docs/operating-loop.md)。
+在 OpenCode 中选择 `ios-business-operator` 运行完整运营工作流。运营角色通过专用工具访问运营命令，App 源码仅作核验证据。需要开发的反馈通过审批后的 GitHub Issue 或本地交接包送至外部开发 Agent，由独立人员或 Agent 验收。配置、状态和输入样例见 [持续运营手册](docs/operating-loop.md)。
 
 ## 开始使用
 
@@ -53,7 +53,7 @@ npm run agent -- history --app 1234567890
 
 本地启动 `npx --yes opencode-ai@1.19.6`。项目配置已接入 Chrome DevTools MCP。Chrome 144+ 可从 `chrome://inspect/#remote-debugging` 为专用浏览器配置启用调试连接。用户在该配置中完成 Apple 或社交帐号登录，并确认 Chrome 连接提示。复制到云端运行时，使用同一个已授权环境中的浏览器会话。云端的浏览器只能看到它所在环境里实际打开的会话。
 
-CLI 可以返回对应的官方面板入口。Agent 使用浏览器读取表格或准备平台原生草稿。浏览器读到的 App、经营和花费记录可以参照 [metrics.json](examples/metrics.json) 导入。日期要与本次扫描窗口一致。实时 API 不可用时可导入 App Store Connect 确认过的版本状态。App Analytics 漏斗目前走导入流程，参照 `asc-analytics-reports` 或从浏览器取得原始数据。
+CLI 可以返回对应的官方面板入口。Agent 使用浏览器读取表格或准备平台原生草稿。为这个工作区使用专用浏览器，浏览器所用账号只保留 App Store Connect 和已批准社交平台所需权限。浏览器读到的 App、经营和花费记录可以参照 [metrics.json](examples/metrics.json) 导入。日期要与本次扫描窗口一致。实时 API 不可用时可导入 App Store Connect 确认过的版本状态。App Analytics 漏斗目前走导入流程，参照 `asc-analytics-reports` 或从浏览器取得原始数据。
 
 ```bash
 npm run agent -- browser --platform asc

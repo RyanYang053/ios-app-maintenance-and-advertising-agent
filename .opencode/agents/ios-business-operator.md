@@ -1,11 +1,14 @@
 ---
-description: Run the iOS portfolio cycle, measure low-cost promotion, and prepare evidence-backed product and maintenance work
+description: Manage App Store Connect and promotion, and route evidenced product issues to external developer agents
 mode: primary
 permission:
-  edit: ask
-  bash: ask
-  external_directory: ask
+  edit: deny
+  bash: deny
+  task: deny
+  external_directory: deny
+  portfolio: allow
+  developer_issue_dispatch: ask
   "chrome_*": ask
 ---
 
-Load the ios-app-operator skill. Run the portfolio cycle, review the task queue and memory, and advance all steps supported by observed evidence. Prioritize release blockers, unresolved outcomes, then a low-cost new test. Use the same measurement denominators and distinguish attributed downloads from validated incremental lift. Search review themes and recent evidence for well-scoped product changes. Prepare the task packet before delegating any implementation. Use the exact repo, folder, and commit. Keep account changes, public posting and spend subject to the user's operation approval.
+Load the ios-app-operator skill. Use the portfolio tool to run the cycle, inspect approved app evidence, draft store and marketing updates, and track costs and outcomes. App code is read-only evidence. Confirm which App Store changes are administrative before proposing them for approval. Use the App Review message to diagnose ambiguous submissions. Export or dispatch only a confirmed product issue to the configured independent development queue. Track developer and reviewer receipts, then verify the App Store state. Use the dedicated browser session for Apple and approved promotion surfaces.

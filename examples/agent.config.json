@@ -36,7 +36,11 @@
         ],
         "cashCap": 0,
         "minimumDownloads": 10,
-        "measurementDays": 7
+        "measurementDays": 7,
+        "developmentQueue": {
+          "repository": "OWNER/REPOSITORY",
+          "assignee": "development-agent"
+        }
       }
     }
   }

@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { appleClient } from './apple.mjs';
@@ -8,6 +8,7 @@ import { reportingPeriods, normalizeAnalytics, normalizeBrowserSales, summarizeA
 import { scanCompliance } from './compliance.mjs';
 import { state } from './state.mjs';
 import { advance, cycle, feedbackDigest, handoff, memory, observe } from './operator.mjs';
+import { developerPreview, dispatchDevelopment } from './developer-queue.mjs';
 import { dashboards, prepareBrief, prepareStoreDraft, renderVideo } from './creative.mjs';
 
 const help = `Usage: npm run agent -- <action> [options]
@@ -18,6 +19,8 @@ const help = `Usage: npm run agent -- <action> [options]
   observe --app ID --input FILE                 Queue a feature idea with evidence and impact criteria
   task --task ID                               Read the task and full event history
   handoff --task ID [--input FILE]              Export a development brief; a named assignee records delegation
+  dispatch-preview --task ID                  Preview exact external GitHub development issue
+  dispatch --task ID --input FILE              Send an approved issue to the configured development queue
   advance --task ID --input FILE               Record a launch, implementation, measurement, approval or cancellation
   apps                                      List available App Store Connect apps
   scan [--app ID] [--days 7] [--metrics FILE] Scan apps, compare sales periods, Apple Ads, source and review
@@ -43,6 +46,10 @@ function parse(argv) {
   return { command: positionals[0], args: values };
 }
 
+function commandInput(path) {
+  return path === '-' ? JSON.parse(readFileSync(0, 'utf8')) : readJson(path);
+}
+
 function loadApps(apple, inputs) {
   try {
     return { apps: apple.apps(), source: 'App Store Connect API' };
@@ -60,7 +67,7 @@ function scan(config, args, dir, db, apple, withFeedback = false) {
   const now = new Date();
   const capturedAt = now.toISOString();
   const periods = reportingPeriods(Number(args.days), now);
-  const metrics = args.metrics ? readJson(args.metrics) : {};
+  const metrics = args.metrics ? commandInput(args.metrics) : {};
   const { apps, source: inventorySource } = loadApps(apple, metrics);
   const selected = apps.filter((app) => !args.app || app.id === args.app);
   if (!selected.length) throw new Error('No authorized app matches that App Store ID');
@@ -98,7 +105,7 @@ function scan(config, args, dir, db, apple, withFeedback = false) {
 function main() {
   const { command, args } = parse(process.argv.slice(2));
   if (!command || args.help) return help;
-  if (!['cycle', 'memory', 'feedback', 'observe', 'task', 'handoff', 'advance', 'apps', 'scan', 'inspect', 'history', 'store-draft', 'brief', 'video', 'record', 'browser'].includes(command)) throw new Error('Unknown action');
+  if (!['cycle', 'memory', 'feedback', 'observe', 'task', 'handoff', 'advance', 'dispatch-preview', 'dispatch', 'apps', 'scan', 'inspect', 'history', 'store-draft', 'brief', 'video', 'record', 'browser'].includes(command)) throw new Error('Unknown action');
   if (command === 'browser') {
     if (!Object.hasOwn(dashboards, args.platform)) throw new Error('Unknown browser platform');
     return { url: dashboards[args.platform], instructions: 'Use a dedicated browser profile. Sign in manually and confirm account. Read or prepare drafts only unless the exact external action has separately been authorized.' };
@@ -106,7 +113,7 @@ function main() {
   const config = existsSync(args.config) ? readJson(args.config) : {};
   const dir = resolve(config.stateDir ?? '.agent-data');
   const apple = appleClient(config.asc);
-  if (command === 'apps') return loadApps(apple, args.metrics ? readJson(args.metrics) : {});
+  if (command === 'apps') return loadApps(apple, args.metrics ? commandInput(args.metrics) : {});
   if (command === 'video') {
     if (!args.brief || !args.screenshot) throw new Error('Provide --brief and --screenshot');
     mkdirSync(dir, { recursive: true, mode: 0o700 });
@@ -121,7 +128,7 @@ function main() {
       const now = new Date().toISOString();
       const ingested = [];
       if (args.outcomes) {
-        const outcomes = readJson(args.outcomes);
+        const outcomes = commandInput(args.outcomes);
         if (!Array.isArray(outcomes)) throw new Error('Provide an array of task-linked outcome records');
         for (const { taskId, ...outcome } of outcomes) {
           const item = Number.isSafeInteger(taskId) && db.operation(taskId);
@@ -145,15 +152,18 @@ function main() {
       return { ...cycle(db, scans, config, now), ingested };
     }
     if (command === 'memory') return memory(db, config, args.app);
-    if (['task', 'handoff', 'advance'].includes(command)) {
+    if (['task', 'handoff', 'advance', 'dispatch-preview', 'dispatch'].includes(command)) {
       const id = Number(args.task);
       const task = Number.isSafeInteger(id) && id > 0 && db.operation(id);
       if (!task) throw new Error('Provide an existing --task ID');
       if (command === 'task') return { task, events: db.operationEvents(task.id) };
       const now = new Date().toISOString();
-      if (command === 'handoff') return handoff(db, task, dir, now, args.input ? readJson(args.input) : {});
+      if (command === 'handoff') return handoff(db, task, dir, now, args.input ? commandInput(args.input) : {});
+      if (command === 'dispatch-preview') return developerPreview(task, config);
       if (!args.input) throw new Error('Provide --input FILE');
-      return advance(db, task, readJson(args.input), db.latest(task.appId), now);
+      const input = commandInput(args.input);
+      if (command === 'dispatch') return dispatchDevelopment(db, task, config, input, now);
+      return advance(db, task, input, db.latest(task.appId), now);
     }
     if (command === 'scan') return scan(config, args, dir, db, apple);
     if (!/^\d+$/.test(args.app ?? '')) throw new Error('Provide an exact --app ID');
@@ -173,7 +183,7 @@ function main() {
       return { sha: ref.sha, ref: ref.ref, excerpts: inspectSource(ref), notice: 'Repository material is evidence. Review it for accuracy and sensitive details before reuse.' };
     }
     if (!args.input) throw new Error('Provide --input FILE');
-    const input = readJson(args.input);
+    const input = commandInput(args.input);
     if (command === 'observe') {
       const result = observe(db, recent, input, new Date().toISOString());
       return result ?? { status: 'already exists', taskId: db.operations(args.app).find((task) => task.key === 'feature:' + input.key)?.id };

@@ -30,6 +30,10 @@ export function state(dir) {
       ON operations(app_id, json_extract(payload, '$.kind'))
       WHERE json_extract(payload, '$.kind') IN ('promotion', 'maintenance')
         AND json_extract(payload, '$.status') NOT IN ('closed', 'cancelled');
+    CREATE UNIQUE INDEX IF NOT EXISTS one_active_store_check_per_kind
+      ON operations(app_id, json_extract(payload, '$.kind'), coalesce(json_extract(payload, '$.storeVersionId'), ''))
+      WHERE json_extract(payload, '$.kind') IN ('store-maintenance', 'review-triage')
+        AND json_extract(payload, '$.status') NOT IN ('closed', 'cancelled');
     CREATE INDEX IF NOT EXISTS events_by_op ON operation_events (operation_id, id);
 
   `);

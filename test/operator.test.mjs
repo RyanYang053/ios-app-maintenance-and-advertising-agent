@@ -105,7 +105,7 @@ console.log(JSON.stringify(result));
   assert.equal(scan.decision.recommendation.priority, 1);
   assert.equal(scan.source.release.sha, repo.release);
   const realCycle = agent('cycle', '--app', '123');
-  assert.equal(realCycle.queue[0].kind, 'maintenance');
+  assert.equal(realCycle.queue[0].kind, 'review-triage');
   assert.equal(realCycle.apps[0].feedback.data.themes[0].theme, 'crash');
   assert.deepEqual(agent('cycle', '--app', '123').apps[0].created, []);
   assert.equal(agent('task', '--task', String(realCycle.queue[0].id)).events[0].event, 'queued');

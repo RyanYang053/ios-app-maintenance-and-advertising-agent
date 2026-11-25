@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { attempt, run, writeJson } from './io.mjs';
+import { reviewRoutes, storeProof } from './release-routing.mjs';
 
 const DAY = 86_400_000;
 const SHA = /^[a-f0-9]{40}$/i;
@@ -94,10 +95,10 @@ function buildAcceptance(evidence) {
 }
 
 function stableLive(scan) {
-  return scan.store?.status === 'ok' && scan.store.data?.live &&
-    scan.source?.status === 'matched' && scan.compliance?.status !== 'blocked' &&
-    !(scan.review?.data?.summary?.blocking > 0) &&
-    !/REJECTED|INVALID/.test(scan.store.data.candidate?.state ?? '');
+  if (scan.store?.status !== 'ok' || !scan.store.data?.live || scan.source?.status !== 'matched') return false;
+  if (scan.compliance?.status !== 'blocked') return true;
+  const releaseSha = scan.source.release?.sha;
+  return Boolean(releaseSha && scan.compliance.sha && releaseSha !== scan.compliance.sha);
 }
 
 function reconcileRelease(db, task, scan, now) {
@@ -144,7 +145,7 @@ export function observe(db, scan, input, now) {
     throw new Error('Refresh and resolve the app source before queuing a feature');
   }
   return db.enqueue(baseTask(scan, 'feature', 'feature:' + key, now, {
-    priority: 3, target: selection(scan), problem, proposedChange, userFlow, signals,
+    priority: 3, owner: 'external-development', target: selection(scan), problem, proposedChange, userFlow, signals,
     acceptance: buildAcceptance(input), impact,
   }), now);
 }
@@ -178,25 +179,36 @@ export function cycle(db, scans, config, now) {
     for (const task of items.filter((item) => item.status === 'live' && item.dueAt <= date(now))) {
       waiting.push({ id: task.id, reason: 'Impact measurement due', dueAt: task.dueAt });
     }
-    const candidate = scan.store?.data?.candidate;
-    const blocked = scan.compliance?.status === 'blocked' || scan.review?.data?.summary?.blocking > 0 ||
-      /REJECTED|INVALID/.test(candidate?.state ?? '');
-    if (blocked && scan.source?.status === 'matched' &&
-      !items.some((item) => item.kind === 'maintenance' && !['closed', 'cancelled'].includes(item.status))) {
-      const version = candidate?.version ?? scan.store?.data?.live?.version ?? 'unknown';
-      const task = db.enqueue(baseTask(scan, 'maintenance', 'maintenance:' + version + ':' + scan.source.development.sha, now, {
-        priority: 1, target: selection(scan),
-        problem: 'Confirmed App Store validation, review, or static compliance blocker',
-        proposedChange: 'Reproduce the blockers and fix the smallest confirmed issue needed for release.',
-        userFlow: 'Verify the actual iOS review or device flow associated with each blocker.',
-        signals: [{ kind: 'scan', ref: scan.capturedAt, observation: scan.decision.recommendation }],
-        acceptance: [
-          { id: 'BLOCKERS', criterion: 'Re-run the original review validator and compliance scan; explain every original issue with new evidence.' },
-          { id: 'REGRESSION', criterion: 'Provide exact relevant existing test commands and results plus repeatable device verification.' },
-        ],
-      }), now);
+    const { candidate, store, code, triage } = reviewRoutes(scan);
+    const open = (kind) => items.some((item) => item.kind === kind && !['closed', 'cancelled'].includes(item.status));
+    const releaseKey = candidate?.id ?? candidate?.version ?? scan.store?.data?.live?.version ?? 'unknown';
+    const enqueue = (kind, details) => {
+      if (open(kind)) return;
+      const previous = items.find((item) => item.kind === kind);
+      const task = db.enqueue(baseTask(scan, kind, kind + ':' + releaseKey + ':' + (previous?.id ?? 0), now, details), now);
       if (task) created.push(task.id);
-    }
+    };
+    if (store.length) enqueue('store-maintenance', {
+      priority: 1, owner: 'app-store-operator', storeVersionId: candidate.id, storeChecks: store,
+      problem: 'App Store Connect listing, submission, or account check needs attention.',
+      proposedChange: 'Confirm affected fields, prepare the exact change for approval, and recheck Apple after the change.',
+    });
+    if (triage) enqueue('review-triage', {
+      priority: 1, owner: 'app-store-operator', storeVersionId: candidate?.id,
+      problem: 'The exact cause of an Apple review blocker needs confirmation.',
+      proposedChange: 'Read the App Review message, record the observed cause, and route a verified code issue to development.',
+    });
+    if (code && scan.source?.status === 'matched') enqueue('maintenance', {
+      priority: 1, owner: 'external-development', target: selection(scan),
+      problem: 'The static App Store compliance scan reported a blocking issue.',
+      proposedChange: 'Reproduce the source-level blocker and fix the smallest confirmed issue.',
+      userFlow: 'Verify the affected iOS device or review flow and regressions.',
+      signals: [{ kind: 'scan', ref: scan.capturedAt, observation: scan.compliance.findings }],
+      acceptance: [
+        { id: 'BLOCKERS', criterion: 'Re-run the original compliance check and document the behavior or evidence that resolves the blocker.' },
+        { id: 'REGRESSION', criterion: 'Provide relevant existing test commands and results plus device or simulator evidence.' },
+      ],
+    });
     const learning = promotionLearning(appId, policy, db.operations());
     const active = items.some((item) => item.kind === 'promotion' && !['closed', 'cancelled'].includes(item.status));
     if (stableLive(scan) && !active && policy.channels.length) {
@@ -272,8 +284,13 @@ function publishedProof(task, input, scan, now) {
   };
 }
 
+export function canHandoff(task) {
+  return task.kind === 'feature' || (task.kind === 'maintenance' &&
+    (task.owner === 'external-development' || task.status === 'delegated'));
+}
+
 export function handoff(db, task, dir, now, input = {}) {
-  if (task.kind === 'promotion' || !['queued', 'delegated'].includes(task.status)) {
+  if (!canHandoff(task) || !['queued', 'delegated'].includes(task.status)) {
     throw new Error('Only queued or delegated development operations can generate a handoff');
   }
   if (input.assignee !== undefined && (!text(input.assignee) || input.assignee.length > 120)) {
@@ -284,6 +301,7 @@ export function handoff(db, task, dir, now, input = {}) {
     target: task.target, problem: task.problem, proposedChange: task.proposedChange,
     userFlow: task.userFlow, signals: task.signals, acceptance: task.acceptance,
     impact: task.impact,
+    owner: 'external-development',
     scope: 'Start from the provided commit in a separate branch. Keep changes inside the approved app and report dependencies or scope changes before editing unrelated code.',
     delivery: 'Return the commit, optional pull request, version and build expected to ship, and PASS/FAIL/BLOCKED for each exact acceptance ID with actual evidence. The operator records reviewer verification and the loop checks Apple release status.',
   };
@@ -373,6 +391,43 @@ export function advance(db, task, input, scan, now) {
   if (input.action === 'cancel' && !['closed', 'cancelled'].includes(task.status) && text(input.reason)) {
     return db.updateOperation(task, { status: 'cancelled', reason: input.reason }, 'cancelled', now);
   }
+  if ((task.kind === 'review-triage' || (task.kind === 'maintenance' && !task.owner)) &&
+    task.status === 'queued' && input.action === 'route-review') {
+    const candidate = scan.store?.data?.candidate;
+    const recent = Date.parse(now) - Date.parse(scan.capturedAt);
+    if (scan.store?.status !== 'ok' || !candidate?.id || input.versionId !== candidate.id ||
+      (task.storeVersionId && task.storeVersionId !== candidate.id) || !Number.isFinite(recent) ||
+      recent < 0 || recent > 72 * 3_600_000 ||
+      !text(input.problem) || !text(input.evidence) || !['store', 'developer'].includes(input.destination)) {
+      throw new Error('Record a fresh, version-specific review diagnosis and traceable evidence');
+    }
+    if (input.destination === 'store') {
+      const existing = db.operations(task.appId).find((row) => row.kind === 'store-maintenance' &&
+        row.storeVersionId === candidate.id && !['closed', 'cancelled'].includes(row.status));
+      if (existing) {
+        const diagnosis = { problem: input.problem, evidence: input.evidence, triageTaskId: task.id };
+        db.updateOperation(existing, { relatedDiagnoses: [...(existing.relatedDiagnoses ?? []), diagnosis] },
+          'review-diagnosis-linked', now);
+        return db.updateOperation(task, { status: 'closed',
+          outcome: { verdict: 'linked to App Store Connect maintenance', taskId: existing.id, ...diagnosis } },
+        'review-routed', now);
+      }
+      return db.updateOperation(task, { kind: 'store-maintenance', owner: 'app-store-operator',
+        storeVersionId: candidate.id, problem: input.problem, diagnosis: input.evidence }, 'review-routed', now);
+    }
+    if (scan.source?.status !== 'matched' || !text(input.userFlow) || !text(input.proposedChange) ||
+      !Array.isArray(input.acceptance) || input.acceptance.length < 2 || input.acceptance.length > 12 ||
+      !input.acceptance.every(text)) throw new Error('A confirmed code issue requires a matched source, user flow and testable acceptance criteria');
+    return db.updateOperation(task, { kind: 'maintenance', owner: 'external-development', target: selection(scan),
+      storeVersionId: candidate.id, problem: input.problem, proposedChange: input.proposedChange,
+      userFlow: input.userFlow, signals: [{ kind: 'app-review-diagnosis', ref: candidate.id, observation: input.evidence }],
+      acceptance: buildAcceptance(input) }, 'review-routed', now);
+  }
+  if (task.kind === 'store-maintenance' && task.status === 'queued' && input.action === 'store-resolved') {
+    const proof = storeProof(task, scan, input, now);
+    return db.updateOperation(task, { status: 'closed',
+      outcome: { verdict: 'App Store Connect change verified', ...proof } }, 'store-verified', now);
+  }
   if (task.kind === 'promotion' && task.status === 'queued' && input.action === 'authorize-cost') {
     if (input.currency !== task.policy.currency || !NONNEGATIVE(input.amount) || input.amount > task.policy.cashCap ||
       !text(input.approvalReference)) throw new Error('A specific operator approval and an amount within the per-experiment cash cap are required');
@@ -386,7 +441,7 @@ export function advance(db, task, input, scan, now) {
     return db.updateOperation(task, { status: 'live', publication, startedAt: input.publishedAt,
       dueAt: date(Date.parse(date(input.publishedAt)) + (task.policy.measurementDays + 1) * DAY) }, 'published', now);
   }
-  if (task.kind !== 'promotion' && task.status === 'delegated' && input.action === 'implemented') {
+  if (canHandoff(task) && task.status === 'delegated' && input.action === 'implemented') {
     const result = delivery(task, input);
     if (result.status === 'implemented' && scan.store?.data?.live?.version === result.delivery.version &&
       String(scan.store.data.live.buildNumber) === result.delivery.build) {
