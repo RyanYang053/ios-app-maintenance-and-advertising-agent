@@ -52,3 +52,5 @@ When appAccounts is configured, use the exact app-specific ASC profile and bundl
 Use health-scan for recent sanitized TestFlight and diagnostic samples. For actual native rank, rank-import accepts a verified native search export; never invent or spoof the export. Inspect source-separated keyword and competitor evidence. Full analytics exports still need scope and completeness validation.
 
 Create local screenshots using the screenshot command and app-scoped approved PNG; visually inspect actual output and verify current Apple dimensions. PPO plans use one control and up to three clearly differentiated treatments, a predeclared sample/confidence threshold and exact live version. Record actual Apple PPO reports via ppo-result; never apply a treatment automatically. See upstream-integration.md.
+
+Retire contradicted or obsolete app rules using lesson-retire with same-app closed evidence and the exact current revision. Never silently delete historical records.
