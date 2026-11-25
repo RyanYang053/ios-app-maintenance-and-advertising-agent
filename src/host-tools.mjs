@@ -1,7 +1,6 @@
 import { execFile } from 'node:child_process';
 import { readFileSync, realpathSync } from 'node:fs';
 import { resolve, relative, isAbsolute, sep } from 'node:path';
-import { promisify } from 'node:util';
 
 export const actions = Object.freeze({
   apps: 'List authorized Apple apps',
