@@ -1,0 +1,19 @@
+# Upstream integration and operating runbook
+
+## Provenance (pinned)
+- MIT ASO Studio: https://github.com/dsm5e/aso-tracker/blob/0c92ff4374122ec17fc5036078a42e923165cfd5/aso-keywords/server/scheduler.ts — FNV-1a weekday scheduling, daily top-50/new and weekly refresh tiers ported to local JS. Public iTunes search request shape from its itunes.ts; native App Store search is not implemented. One shared persistent cooldown prevents rate-limit evasion across apps; no egress proxies.
+- MIT Hermes: https://github.com/NousResearch/hermes-agent/blob/33522e6deeb77d3bd8c5c4222d0681f53974cc30/tools/memory_tool_store.py — quote/dash/whitespace normalization and unique-match resolution ported to local JS. Review flags only; no destructive memory rewrite.
+- MIT Indie App Autopilot: https://github.com/rshankras/indie-app-autopilot/blob/7fdd1c157c9018049824f04db680a994a264cd46/agents/portfolio-health-monitor/SKILL.md and agents/feedback-triage/SKILL.md — weekly same-scope anomaly thresholds and crash signature/OS clustering adapted to local evidence ingestion. No auto-posting issues and no MCP.
+- MeshPilot / AsoBeast are AGPL; AppMate license not verified. No source copied from them. Forecast-versus-outcome and app credential selection use independent implementation.
+
+MIT license texts in third-party/. No additional model APIs or server runtime required.
+
+## Commands
+In each app's own session run context, keyword-plan, learning-review. Configure loop.apps[ID].aso.keywords and storefronts. The keyword plan schedules one observation per configured phrase and country; use keyword-check with appId, keyword, country in JSON in imports/ID. Each call makes one public iTunes search. Rank is the order from that API, not native App Store search rank. Null means absent from the returned results, not zero. Rate limits and failed requests do not record rank. Repeated calls must obey cooldown. No unattended schedule is installed.
+
+Use health-record with appId, start/end (seven complete days), source, scope, metrics and optional incidents (signature, os, occurrences, evidence) and currency for proceeds. Reports must be verified from authorized exports; this is not automated ASC crash ingestion. Compare adjacent weeks only with matching scope/source/currency. Suggested incidents are evidence for review; operator must independently verify and use observe/handoff with approved acceptance, not automatically file GitHub issues.
+
+Before a queued feature/promotion, forecast records appId, taskId, metric (downloads or the predeclared feature metric), expected, rationale, failureCondition. It is immutable for the task. After advance records the actual result, learning-review reports error and flags stale or overlapping skill lessons. New lesson revisions require same-app closed task evidence. No model retraining or automated causal claim.
+
+## Remaining boundaries
+Native App Store rank, live TestFlight diagnostics import, full ASO Studio screenshot/PPO/In-App Event editor, and direct authorized Apple writes are not supplied by these ports. Existing store-draft, creative, approval and manual browser steps remain. Separate profiles and OS accounts are needed for actual credential security; app-scoped SQLite is logical isolation. Real Apple and social accounts and installed desktop sessions must be tested by the owner. CI uses fixtures and does not simulate a real successful campaign.
