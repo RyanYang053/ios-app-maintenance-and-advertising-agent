@@ -33,3 +33,16 @@ test('video input stays in approved folders, including symlink escape',t=>{
     assert.throws(()=>buildInvocation(root,'video',{...args,screenshot:'escape'}));
   }
 });
+test('capture takes only bounded seconds and boolean flags for an exact app',()=>{
+  assert.deepEqual(buildInvocation('/tmp','capture',{app:'123',seconds:10,current:true}).argv.slice(1),['capture','--app','123','--seconds','10','--current']);
+  assert.throws(()=>buildInvocation('/tmp','capture',{}),/App ID/);
+  assert.throws(()=>buildInvocation('/tmp','capture',{app:'123',seconds:61}),/seconds/);
+  assert.throws(()=>buildInvocation('/tmp','capture',{app:'123',file:'x'}),/Unexpected/);
+});
+test('xiaohongshu is a supported social channel with its own dashboard',async()=>{
+  const { dashboards } = await import('../src/creative.mjs');
+  const { SOCIAL_CHANNELS } = await import('../src/operator.mjs');
+  assert.ok(SOCIAL_CHANNELS.includes('xiaohongshu'));
+  assert.match(dashboards.xiaohongshu,/^https:\/\/creator\.xiaohongshu\.com\//);
+  assert.deepEqual(buildInvocation('/tmp','browser',{platform:'xiaohongshu'}).argv.slice(1),['browser','--platform','xiaohongshu']);
+});

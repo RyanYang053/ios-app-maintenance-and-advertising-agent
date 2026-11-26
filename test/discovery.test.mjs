@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir, homedir } from 'node:os';
-import { discoverSources, discoveryRoots } from '../src/discovery.mjs';
+import { bundleIds, discoverSources, discoveryRoots } from '../src/discovery.mjs';
 import { run, writeJson } from '../src/io.mjs';
 
 const pbx = (id) => 'buildSettings = { PRODUCT_BUNDLE_IDENTIFIER = ' + id + '; MARKETING_VERSION = 1.2; };\n';
@@ -98,4 +98,13 @@ if(!r)process.exit(2);console.log(JSON.stringify(r));`, { mode: 0o700 });
   assert.equal(by['shipped-commit'].status, 'DONE');
   assert.match(by['store-state'].detail, /live 1.2.0.*next 1.3.0 WAITING_FOR_REVIEW/);
   assert.equal(by['creative-assets'].status, 'TODO');
+});
+
+test('bundle IDs are read from quoted pbxproj keys (generated projects)', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'quoted-'));
+  try {
+    const file = join(dir, 'project.pbxproj');
+    writeFileSync(file, '"buildSettings" = { "PRODUCT_BUNDLE_IDENTIFIER" = "me.example.inbox"; };');
+    assert.deepEqual(bundleIds(file), ['me.example.inbox']);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });

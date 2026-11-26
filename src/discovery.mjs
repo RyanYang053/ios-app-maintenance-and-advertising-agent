@@ -10,7 +10,7 @@ import { assertEvidenceApp } from './app-context.mjs';
 
 const SKIP = new Set(['node_modules', 'Pods', 'Carthage', 'DerivedData', 'build', 'dist', 'vendor', 'Library', 'Applications',
   'Music', 'Movies', 'Pictures', 'SourcePackages', 'checkouts', 'xcuserdata']);
-const BUNDLE = /(?:PRODUCT_BUNDLE_IDENTIFIER\s*=\s*["']?|\bbundleId\s*:\s*["']?)([A-Za-z0-9][\w.-]+)/g;
+const BUNDLE = /(?:PRODUCT_BUNDLE_IDENTIFIER["']?\s*=\s*["']?|\bbundleId\s*:\s*["']?)([A-Za-z0-9][\w.-]+)/g;
 const LIMITS = { depth: 7, dirs: 60_000, projects: 2_000, bytes: 8_000_000 };
 
 export function discoveryRoots(config) {

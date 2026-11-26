@@ -37,7 +37,8 @@ export function confirmRelease(db, scan, id, input, now) {
   });
 }
 
-// Returns {sha, provenance} for the live version, or null when shipped code is unverified.
+// Returns {sha, provenance} for the live version: tag, then release record, then (owner policy)
+// the matched development HEAD. Null only when no source is matched.
 export function liveRelease(scan, records = []) {
   const live = scan?.store?.data?.live;
   if (!live) return null;
@@ -50,5 +51,6 @@ export function liveRelease(scan, records = []) {
     (row.build == null || String(row.build) === String(live.buildNumber ?? '')) &&
     row.repo === dev?.repo && row.folder === dev?.folder);
   return record ? { sha: record.commit, provenance: 'release record (' + record.basis + ')',
-    release: { ...dev, sha: record.commit, ref: 'release-record:' + record.version } } : null;
+    release: { ...dev, sha: record.commit, ref: 'release-record:' + record.version } } :
+    { sha: dev.sha, provenance: 'development HEAD (owner waived release records)', release: dev };
 }

@@ -8,7 +8,7 @@ import { parseArgs } from 'node:util';
 import { appleClient } from '../src/apple.mjs';
 
 const root = resolve(import.meta.dirname, '..');
-const CHANNELS = ['tiktok', 'instagram', 'youtube', 'x', 'reddit', 'linkedin', 'apple-ads'];
+const CHANNELS = ['tiktok', 'instagram', 'youtube', 'x', 'reddit', 'linkedin', 'xiaohongshu', 'apple-ads'];
 const { values: v } = parseArgs({ options: { market: { type: 'string' }, channels: { type: 'string' }, currency: { type: 'string' },
   roots: { type: 'string' }, 'dry-run': { type: 'boolean' } } });
 const file = resolve(root, 'agent.config.json');

@@ -22,7 +22,7 @@ export const schemas = {
     purpose: 'Save a multi-platform promotion brief with tracked Apple campaign links.',
     fields: { appId: 'App Store ID', verifiedVersion: 'live version', listingSha: 'shipped commit (tag or release-confirm)',
       audience: 'who', hook: 'first line', proof: 'a real, visible feature', cta: 'call to action',
-      platforms: 'tiktok | instagram | youtube | x | reddit | linkedin', campaignLinks: '{platform: https://apps.apple.com/...id<ID>?pt=..&ct=<unique>}' },
+      platforms: 'tiktok | instagram | youtube | x | reddit | linkedin | xiaohongshu', campaignLinks: '{platform: https://apps.apple.com/...id<ID>?pt=..&ct=<unique>}' },
     example: { appId: APP, verifiedVersion: '1.2.0', listingSha: SHA, audience: 'People who track strength workouts',
       hook: 'Stop counting reps in your head', proof: 'Each rep is counted on screen', cta: 'Try it on iPhone',
       platforms: ['tiktok', 'youtube'], campaignLinks: { tiktok: 'https://apps.apple.com/app/id' + APP + '?pt=123456&ct=tt-reps-w48' } },

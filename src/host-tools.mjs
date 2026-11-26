@@ -43,11 +43,12 @@ export const actions = Object.freeze({
   browser: 'Return the approved platform dashboard URL',
   'discover-sources': 'Find local Xcode projects matching each app bundle ID under owner-configured roots',
   'source-confirm': 'Confirm one discovered source for an app; kept in the ledger and used by scan',
-  status: 'Per-app workflow checklist with the next command to run'
+  status: 'Per-app workflow checklist with the next command to run',
+  capture: 'Run the app in an existing simulator and save a screenshot (and optional recording) to assets/APP_ID'
 });
-const platforms = ['asc','ads','tiktok','instagram','youtube','x','reddit','linkedin'];
+const platforms = ['asc','ads','tiktok','instagram','youtube','x','reddit','linkedin','xiaohongshu'];
 const newInputs = ['source-confirm','release-confirm','storyboard','content-plan','ads-plan'];
-const appRequired = new Set([...newInputs,'lesson-retire','screenshot','ppo-plan','ppo-result','rank-import','health-scan','keyword-plan','keyword-check','health-record','forecast','learning-review','context','lesson','task','handoff','advance','dispatch-preview','video','feedback','inspect','history','observe','research','store-observe','store-draft','brief','record']);
+const appRequired = new Set([...newInputs,'capture','lesson-retire','screenshot','ppo-plan','ppo-result','rank-import','health-scan','keyword-plan','keyword-check','health-record','forecast','learning-review','context','lesson','task','handoff','advance','dispatch-preview','video','feedback','inspect','history','observe','research','store-observe','store-draft','brief','record']);
 const taskRequired = new Set(['task','handoff','dispatch-preview','advance']);
 export const inputRequired = new Set([...newInputs,'lesson-retire','screenshot','ppo-plan','ppo-result','rank-import','keyword-check','health-record','forecast','lesson','observe','advance','research','store-observe','store-draft','brief','record']);
 const inputAllowed = new Set([...inputRequired,'handoff']);
@@ -70,7 +71,8 @@ export function buildInvocation(root, action, args = {}) {
     ...(action==='inspect'?['release','file','query']:[]),
     ...(action==='browser'?['platform']:[]),
     ...(action==='video'?['brief','screenshot','storyboard']:[]),
-    ...(action==='screenshot'?['screenshot']:[])
+    ...(action==='screenshot'?['screenshot']:[]),
+    ...(action==='capture'?['seconds','current','build']:[])
   ]);
   for (const k of Object.keys(args)) if (args[k]!==undefined && !allowed.has(k)) throw new Error('Unexpected option: '+k);
   const argv = [resolve(root,'src/cli.mjs'),action];
@@ -87,7 +89,11 @@ export function buildInvocation(root, action, args = {}) {
     if (!Number.isInteger(args.days)||args.days<1||args.days>30) throw new Error('Invalid days');
     argv.push('--days',String(args.days));
   }
-  for (const key of ['cached','release']) if (args[key]===true) argv.push('--'+key);
+  if (args.seconds!==undefined) {
+    if (!Number.isInteger(args.seconds)||args.seconds<0||args.seconds>60) throw new Error('Invalid seconds');
+    argv.push('--seconds',String(args.seconds));
+  }
+  for (const key of ['cached','release','current','build']) if (args[key]===true) argv.push('--'+key);
   for (const key of ['file','query']) if (args[key]!==undefined) {
     if (typeof args[key]!=='string'||!args[key].trim()||args[key].length>300||/[\0\n]/.test(args[key])) throw new Error('Invalid --'+key);
     argv.push('--'+key+'='+args[key]);
@@ -146,7 +152,7 @@ export function failureDetail(stderr) {
 export async function runHostTool(root,action,args) {
   const {argv,stdin}=buildInvocation(root,action,args);
   return await new Promise((done,fail)=>{
-    const child=execFile(process.execPath,['--disable-warning=ExperimentalWarning',...argv],{cwd:root,timeout:action==='video'?1800000:600000,maxBuffer:24*1024*1024,windowsHide:true},(err,out,errOut)=>{
+    const child=execFile(process.execPath,['--disable-warning=ExperimentalWarning',...argv],{cwd:root,timeout:action==='capture'?3900000:action==='video'?1800000:600000,maxBuffer:24*1024*1024,windowsHide:true},(err,out,errOut)=>{
       if(err) return fail(new Error(err.killed?'Operator command timed out':failureDetail(errOut)));
       try {done(scopedResult(action,args,JSON.parse(out)));} catch {fail(new Error('Invalid operator response'));}
     });

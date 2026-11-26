@@ -24,7 +24,7 @@ async function main() {
   const {values:v,positionals:p}=parseArgs({allowPositionals:true,options:{
     app:{type:'string'},task:{type:'string'},days:{type:'string'},cached:{type:'boolean'},release:{type:'boolean'},
     platform:{type:'string'},brief:{type:'string'},screenshot:{type:'string'},storyboard:{type:'string'},query:{type:'string'},input:{type:'string'},
-    metrics:{type:'string'},outcomes:{type:'string'},name:{type:'string'},file:{type:'string'},help:{type:'boolean'},live:{type:'boolean'}
+    metrics:{type:'string'},outcomes:{type:'string'},name:{type:'string'},file:{type:'string'},help:{type:'boolean'},live:{type:'boolean'},seconds:{type:'string'},current:{type:'boolean'},build:{type:'boolean'}
   }});
   if(v.help||p.length===0) return {usage:'node scripts/operator.mjs ACTION [options]',actions:Object.keys(actions),references:['guide','skills','skill --name NAME [--file FILE]','schema [--name ACTION]','doctor [--live]'],evidence:'--input/--metrics/--outcomes accept stdin (-) or JSON under stateDir/imports/APP_ID. Run schema --name ACTION for exact fields and an example.'};
   if(p.length!==1) throw new Error('Expected one action');
@@ -42,7 +42,7 @@ async function main() {
   }
   if(!Object.hasOwn(actions,action)) throw new Error('Unsupported operator action');
   const args={...v};
-  for(const k of ['task','days']) if(args[k]!==undefined){
+  for(const k of ['task','days','seconds']) if(args[k]!==undefined){
     if(!/^\d+$/.test(args[k])) throw new Error('Invalid numeric option');
     args[k]=Number(args[k]);
   }

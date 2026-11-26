@@ -7,7 +7,7 @@ const REPO = /^[\w.-]+\/[\w.-]+$/;
 const ID_FILE = /(?:^|\/)(?:project\.pbxproj|[^/]+\.xcconfig|Info\.plist|app\.json|eas\.json|tauri\.conf\.json|config\.xml|[^/]+\.xcodegen\.yml|project\.yml)$/i;
 const DOCS = /^(?:readme(?:\.[\w-]+)?|package\.json|pubspec\.yaml|privacyinfo\.xcprivacy)$/i;
 const IGNORE = /(?:^|\/)(?:\.git|\.agent-data|Pods|node_modules|Carthage|vendor|examples?|tests?|fixtures?|build|dist)(?:\/|$)/i;
-const BUNDLES = /(?:PRODUCT_BUNDLE_IDENTIFIER\s*=\s*["']?|"bundleIdentifier"\s*:\s*"|<key>CFBundleIdentifier<\/key>\s*<string>|\bbundleId\s*:\s*["']?)([\w.-]+)/g;
+const BUNDLES = /(?:PRODUCT_BUNDLE_IDENTIFIER["']?\s*=\s*["']?|"bundleIdentifier"\s*:\s*"|<key>CFBundleIdentifier<\/key>\s*<string>|\bbundleId\s*:\s*["']?)([\w.-]+)/g;
 
 const git = (path, args, options) => run('git', ['-C', path, ...args], options).trim();
 const literal = (value) => value.replace(/[.*+?^$${}()|[\]\\]/g, '\\$&');
@@ -113,7 +113,8 @@ export function findSources(app, releases, repos, binding) {
         }
         // A matching Info.plist may sit inside a target already represented by its Xcode project.
         const projectRoots = verified.filter((row) => /\.xcodeproj\/project\.pbxproj$/i.test(row.file)).map((row) => row.root);
-        const roots = folder && verified.length ? [folder] : [...new Set(verified.map((row) =>
+        // An owner binding stands even when the committed tree lacks the bundle ID (generated or uncommitted projects).
+        const roots = (folder && verified.length) || (binding && !verified.length) ? [folder ?? ''] : [...new Set(verified.map((row) =>
           projectRoots.filter((root) => root === '' || row.root === root || row.root.startsWith(root + '/'))
             .sort((a, b) => b.length - a.length)[0] ?? row.root))];
         for (const root of roots) {
@@ -143,12 +144,15 @@ export function findSources(app, releases, repos, binding) {
 }
 
 export function withSourceSnapshot(source, fn) {
-  const temp = mkdtempSync(join(tmpdir(), 'ios-agent-source-'));
+  // Large app folders (ML models, assets) go to the external scratch volume when mounted, not the internal disk.
+  const scratch = existsSync('/Volumes/BuildScratch/Temp') ? '/Volumes/BuildScratch/Temp' : tmpdir();
+  const temp = mkdtempSync(join(scratch, 'ios-agent-source-'));
   try {
     // Materialize only normal files from the exact Git commit. No project hooks, builds, or symlinks.
-    const archive = run('git', ['-C', source.path, 'archive', '--format=tar', source.sha,
-      ...(source.folder ? ['--', source.folder] : [])], { encoding: null, maxBuffer: 160 * 1024 * 1024 });
-    run('tar', ['-xf', '-', '-C', temp], { input: archive });
+    const tarFile = temp + '.tar';
+    run('git', ['-C', source.path, 'archive', '--format=tar', '--output=' + tarFile, source.sha,
+      ...(source.folder ? ['--', source.folder] : [])], { timeout: 300_000 });
+    try { run('tar', ['-xf', tarFile, '-C', temp], { timeout: 300_000 }); } finally { rmSync(tarFile, { force: true }); }
     const removeLinks = (dir) => {
       for (const entry of readdirSync(dir)) {
         const path = join(dir, entry);

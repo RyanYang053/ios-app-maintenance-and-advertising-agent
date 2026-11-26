@@ -6,7 +6,7 @@ import { liveRelease } from './release-record.mjs';
 
 const DAY = 86_400_000;
 const SHA = /^[a-f0-9]{40}$/i;
-export const SOCIAL_CHANNELS = ['tiktok', 'instagram', 'youtube', 'x', 'reddit', 'linkedin'];
+export const SOCIAL_CHANNELS = ['tiktok', 'instagram', 'youtube', 'x', 'reddit', 'linkedin', 'xiaohongshu'];
 export const PAID_CHANNELS = ['apple-ads'];
 const CHANNELS = [...SOCIAL_CHANNELS, ...PAID_CHANNELS];
 export const FORMATS = ['demo', 'tutorial', 'announcement', 'comparison', 'community-post', 'story', 'behind-the-scenes', 'user-problem'];
@@ -306,7 +306,7 @@ export function cycle(db, scans, config, now) {
 
 const POST_HOSTS = {
   tiktok: ['tiktok.com'], instagram: ['instagram.com'], youtube: ['youtube.com', 'youtu.be'],
-  x: ['x.com', 'twitter.com'], reddit: ['reddit.com', 'redd.it'], linkedin: ['linkedin.com'],
+  x: ['x.com', 'twitter.com'], reddit: ['reddit.com', 'redd.it'], linkedin: ['linkedin.com'], xiaohongshu: ['xiaohongshu.com', 'xhslink.com'],
 };
 
 function postUrl(task, value) {

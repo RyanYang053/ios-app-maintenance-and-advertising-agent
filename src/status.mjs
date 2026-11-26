@@ -40,7 +40,7 @@ export function workflowStatus(db, config, dir, now) {
     let media = 0;
     const assets = join(dir, 'assets', id);
     if (existsSync(assets)) media = readdirSync(assets).filter((f) => /\.(png|jpe?g|webp|mp4|mov|webm)$/i.test(f)).length;
-    if (live) step('creative-assets', media > 0, media + ' capture(s) in assets/' + id, 'Owner: add real screenshots or screen recordings of the live version to ' + assets);
+    if (live) step('creative-assets', media > 0, media + ' capture(s) in assets/' + id, r + 'capture --app ' + id);
     const open = db.operations(id).filter((t) => !['closed', 'cancelled'].includes(t.status));
     for (const task of open) {
       const due = task.status === 'live' && task.dueAt <= now.slice(0, 10);

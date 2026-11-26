@@ -111,7 +111,7 @@ test('content plan stays inside configured social channels and active same-chann
   assert.throws(() => contentPlan(db, '123', cfg, { appId: '123', weekStart: date(at(2)), entries: [{ ...entry, date: date(at(12)) }] }, at(1)), /inside the week/);
 });
 
-test('release-confirm unlocks promotion without a Git tag only for a commit in matched history', (t) => {
+test('release-confirm pins promotion to a commit in matched history; otherwise development HEAD stands in', (t) => {
   const { dir, db } = setup(t);
   const repo = join(dir, 'repo');
   run('git', ['init', '-q', repo]);
@@ -123,6 +123,7 @@ test('release-confirm unlocks promotion without a Git tag only for a commit in m
   const scan = fixture(at(1), { source: { status: 'matched', releaseStatus: 'unmatched', development: { repo: 'repo', folder: '', sha: head, ref: 'HEAD', path: repo } } });
   const brief = { verifiedVersion: '1.0', listingSha: shipped, audience: 'a', hook: 'h', proof: 'p', cta: 'c', platforms: ['tiktok'] };
   assert.throws(() => prepareBrief(scan, brief, join(dir, 'b1')), /release-confirm/);
+  assert.equal(liveRelease(scan).sha, head, 'without a record the matched development HEAD stands in');
   const input = { appId: '123', version: '1.0', build: '42', commit: shipped, basis: 'ci-build-record', evidence: 'CI build 42', confirmedBy: 'owner' };
   assert.throws(() => confirmRelease(db, scan, '123', { ...input, commit: 'b'.repeat(40) }, at(1)), /not part of the matched development history/);
   assert.throws(() => confirmRelease(db, scan, '123', { ...input, version: '0.9' }, at(1)), /current live App Store version/);

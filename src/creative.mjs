@@ -11,6 +11,7 @@ const PLATFORMS = {
   x: { url: 'https://x.com/compose/post', format: 'Short native demo or screenshot with a concise post', platformNotes: 'Lead with one outcome and link the exact store campaign. Avoid duplicate replies.' },
   reddit: { url: 'https://www.reddit.com/', format: 'Useful community-specific write-up and optional demo', platformNotes: 'Read each community’s rules, disclose affiliation, and use only the permitted self-promotion thread or format.' },
   linkedin: { url: 'https://www.linkedin.com/feed/', format: 'Native demo with a practical founder or product story', platformNotes: 'Show the use case, what changed and who benefits.' },
+  xiaohongshu: { url: 'https://creator.xiaohongshu.com/publish/publish', format: '3:4 image note or 9:16 video with a Chinese title and tags', platformNotes: 'Write natively in Simplified Chinese as a personal experience note. External links are usually not clickable: point people to search the app name in the App Store, and keep promotional claims within the platform community rules.' },
 };
 
 function storeLink(value, id, required = false) {
@@ -29,7 +30,7 @@ export function prepareBrief(scan, options, dir, records = []) {
   const release = liveRelease(scan, records);
   if (!release || options.listingSha !== release.sha) {
     throw new Error('Promotion claims require shipped-code provenance: a Git tag matching the live version, or a release-confirm record. listingSha must equal that commit' +
-      (release ? ' (' + release.sha + ')' : '') + '. Development HEAD is not shipped evidence.');
+      (release ? ' (' + release.sha + ')' : '') + '.');
   }
   const liveVersion = scan.store.data.live.version;
   const requiredText = ['audience', 'hook', 'proof', 'cta'];

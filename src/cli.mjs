@@ -21,6 +21,7 @@ import { confirmRelease, liveRelease } from './release-record.mjs';
 import { contentPlan, planAppleAds } from './campaigns.mjs';
 import { validateStoryboard, renderStoryboard, resolveAssets } from './storyboard.mjs';
 import { appFolder } from './app-context.mjs';
+import { capture } from './capture.mjs';
 
 const help = `Usage: npm run agent -- <action> [options]
 
@@ -51,6 +52,7 @@ const help = `Usage: npm run agent -- <action> [options]
   advance --task ID --input FILE               Record a launch, implementation, measurement, approval or cancellation
   apps                                      List available App Store Connect apps
   status                                    Per-app checklist: done, blocked and the next command
+  capture --app ID [--seconds N] [--current] [--build]  Simulator screenshot/recording into assets/ID
   discover-sources [--app ID]               Match bundle IDs to local Xcode projects under sourceDiscovery.roots
   source-confirm --app ID --input FILE      Confirm the shipping source copy (kept in the ledger)
   inspect --app ID [--release] [--file PATH|--query TEXT]  Index, read or search code at the commit
@@ -66,7 +68,7 @@ const help = `Usage: npm run agent -- <action> [options]
   content-plan --app ID --input FILE          Record a weekly multi-channel posting calendar
   ads-plan --app ID --input FILE              Preview an exact Apple Ads campaign for owner approval
   record --app ID --input FILE                Record a measured outcome or a published URL
-  browser --platform asc|ads|tiktok|instagram|youtube|x|reddit|linkedin
+  browser --platform asc|ads|tiktok|instagram|youtube|x|reddit|linkedin|xiaohongshu
   --config FILE                              Default: ./agent.config.json
 `;
 
@@ -76,7 +78,7 @@ function parse(argv) {
     days: { type: 'string', default: '7' }, metrics: { type: 'string' }, input: { type: 'string' },
     task: { type: 'string' }, outcomes: { type: 'string' }, cached: { type: 'boolean' },
     brief: { type: 'string' }, screenshot: { type: 'string' }, platform: { type: 'string' }, storyboard: { type: 'string' },
-    release: { type: 'boolean' }, help: { type: 'boolean', short: 'h' }, file: { type: 'string' }, query: { type: 'string' },
+    release: { type: 'boolean' }, seconds: { type: 'string' }, current: { type: 'boolean' }, build: { type: 'boolean' }, help: { type: 'boolean', short: 'h' }, file: { type: 'string' }, query: { type: 'string' },
   } });
   if (positionals.length > 1) throw new Error('Expected one action');
   return { command: positionals[0], args: values };
@@ -128,12 +130,16 @@ function scan(config, args, dir, db, apple, withFeedback = false) {
       source.status = 'incomplete';
     }
     const latestBuild = attempt(() => apple.latestUpload(app.id));
-    const review = store.data?.candidate?.id ? attempt(() => apple.review(app.id, store.data.candidate.id)) : { status: 'unavailable', reason: 'No candidate version ID' };
+    const review = store.data?.candidate?.id ? attempt(() => apple.review(app.id, store.data.candidate.id)) : { status: 'none', reason: 'No version waiting for App Review' };
     const rawSales = apple.sales(app.id, periods);
     const sales = rawSales.status === 'ok' || !imported.sales ? rawSales : normalizeBrowserSales(imported.sales, periods);
     const analytics = normalizeAnalytics(imported.analytics, periods);
     const ads = summarizeAds(rawAds, app.id, periods, imported.ads, config.ads?.campaignApps);
-    const compliance = scanCompliance(source.status === 'matched' ? source.development : null, config.compliance?.checkout);
+    // Owner policy: the static compliance guard runs only after App Store Connect shows a rejection.
+    const reviewState = store.data?.candidate?.state ?? '';
+    const compliance = /REJECTED|INVALID/.test(reviewState) && reviewState !== 'DEVELOPER_REJECTED' ?
+      scanCompliance(source.status === 'matched' ? source.development : null, config.compliance?.checkout) :
+      { status: 'skipped', reason: 'Runs only when App Store Connect shows a rejection' };
     const decision = diagnose(app, store, sales, analytics, { source, ads, compliance });
     const feedback = withFeedback ? attempt(() => feedbackDigest(apple.reviews(app.id), capturedAt)) : undefined;
     const result = { capturedAt, periods, app, inventorySource, store, latestBuild, review, sales, analytics, ads, source, compliance, decision, feedback };
@@ -145,7 +151,7 @@ function scan(config, args, dir, db, apple, withFeedback = false) {
 async function main() {
   const { command, args } = parse(process.argv.slice(2));
   if (!command || args.help) return help;
-  if (!['lesson-retire','screenshot','ppo-plan','ppo-result','rank-import','health-scan','keyword-plan','keyword-check','health-record','forecast','learning-review','context', 'lesson', 'portfolio', 'research', 'store-observe', 'cycle', 'memory', 'feedback', 'observe', 'task', 'handoff', 'advance', 'dispatch-preview', 'dispatch', 'apps', 'scan', 'inspect', 'history', 'store-draft', 'brief', 'video', 'record', 'browser', 'release-confirm', 'storyboard', 'content-plan', 'ads-plan', 'discover-sources', 'source-confirm', 'status'].includes(command)) throw new Error('Unknown action');
+  if (!['lesson-retire','screenshot','ppo-plan','ppo-result','rank-import','health-scan','keyword-plan','keyword-check','health-record','forecast','learning-review','context', 'lesson', 'portfolio', 'research', 'store-observe', 'cycle', 'memory', 'feedback', 'observe', 'task', 'handoff', 'advance', 'dispatch-preview', 'dispatch', 'apps', 'scan', 'inspect', 'history', 'store-draft', 'brief', 'video', 'record', 'browser', 'release-confirm', 'storyboard', 'content-plan', 'ads-plan', 'discover-sources', 'source-confirm', 'status', 'capture'].includes(command)) throw new Error('Unknown action');
   if (command === 'browser') {
     if (!Object.hasOwn(dashboards, args.platform)) throw new Error('Unknown browser platform');
     return { url: dashboards[args.platform], instructions: 'Use a dedicated browser profile. Sign in manually and confirm account. Read or prepare drafts only unless the exact external action has separately been authorized.' };
@@ -254,6 +260,15 @@ async function main() {
       const input = assertEvidenceApp(task.appId,commandInput(args.input),{required:false});
       if (command === 'dispatch') return dispatchDevelopment(db, task, config, input, now);
       return advance(db, task, input, db.latest(task.appId), now);
+    }
+    if (command === 'capture') {
+      const id = appId(args.app);
+      const recent = db.latest(id);
+      if (!recent) throw new Error('Scan this app before capturing');
+      const seconds = Number(args.seconds ?? 0);
+      if (!Number.isInteger(seconds) || seconds < 0 || seconds > 60) throw new Error('--seconds must be a whole number from 0 to 60');
+      mkdirSync(join(dir, 'assets', id), { recursive: true, mode: 0o700 });
+      return await capture(recent, config.loop?.apps?.[id], config, appFolder(join(dir, 'assets'), id), { current: args.current === true, seconds, build: args.build === true });
     }
     if (command === 'scan') return scan(scanConfig, args, dir, db, apple);
     if (!/^\d+$/.test(args.app ?? '')) throw new Error('Provide an exact --app ID');

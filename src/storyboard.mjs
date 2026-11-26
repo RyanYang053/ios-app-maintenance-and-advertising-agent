@@ -17,7 +17,7 @@ export const FONTS = ['Inter', 'Montserrat', 'Outfit', 'Nunito', 'Oswald', 'Leag
   'IBM Plex Mono', 'JetBrains Mono', 'EB Garamond', 'Playfair Display', 'Source Code Pro', 'Noto Sans JP', 'Roboto',
   'Open Sans', 'Lato', 'Poppins'];
 export const CLAIM_KINDS = ['source', 'capture', 'store-listing', 'review', 'metric', 'owner'];
-const SOCIAL = ['tiktok', 'instagram', 'youtube', 'x', 'reddit', 'linkedin', 'apple-ads'];
+const SOCIAL = ['tiktok', 'instagram', 'youtube', 'x', 'reddit', 'linkedin', 'xiaohongshu', 'apple-ads'];
 const MEDIA = { image: ['.png', '.jpg', '.jpeg', '.webp'], video: ['.mp4', '.mov', '.webm'], audio: ['.mp3', '.wav', '.m4a', '.aac'] };
 const NEEDS_MEDIA = ['device', 'split', 'full-bleed'];
 const RISKY = /\d|%|#1|\b(best|fastest|only|first|free|guaranteed|never|always|instant(ly)?|unlimited|no\.? ?1)\b|免费|第一|最|唯一|保证/i;
